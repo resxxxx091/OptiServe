@@ -13,7 +13,8 @@ dist/
 build/
 
 # ---- 环境变量（含敏感信息）----
-.env
+.env*
+!.env.example
 
 # ---- 数据 / 日志 ----
 data/

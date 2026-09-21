@@ -6,7 +6,8 @@ export function createInitialSettings() {
   const saved = readSettings()
   return {
     userId: saved.userId || 'u1001',
-    conversationId: saved.conversationId || ''
+    conversationId: saved.conversationId || '',
+    apiToken: saved.apiToken || ''
   }
 }
 
@@ -124,7 +125,13 @@ function normalizeToolTraceResponse(raw) {
 }
 
 async function requestJson(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, options)
+  // 合并而非覆盖：调用方已带 Content-Type，上传接口刻意不带以便浏览器生成 FormData 边界
+  const headers = new Headers(options.headers)
+  const token = readSettings().apiToken
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
   const text = await response.text()
   let data = null
   try {

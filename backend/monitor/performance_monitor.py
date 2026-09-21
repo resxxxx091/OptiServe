@@ -18,7 +18,7 @@ from collections import defaultdict, deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Deque, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -124,14 +124,17 @@ class PerformanceMonitor:
         orchestrator,
         tool_manager,
         interval_s:       float = 10.0,
+        alert_max:        int   = 200,
+        suggestion_max:   int   = 50,
     ):
         self._orchestrator = orchestrator
         self._tool_manager = tool_manager
         self._interval     = interval_s
         self._detector     = AnomalyDetector()
 
-        self._alerts:      List[Alert]      = []
-        self._suggestions: List[Suggestion] = []
+        # 有界：采集每 interval_s 跑一轮，长驻进程不能用无上限 list 存历史
+        self._alerts:      Deque[Alert]      = deque(maxlen=alert_max)
+        self._suggestions: Deque[Suggestion] = deque(maxlen=suggestion_max)
         self._active       = False
         self._task:        Optional[asyncio.Task] = None
 
@@ -205,8 +208,8 @@ class PerformanceMonitor:
             # 连续失败 → 生成具体建议
             if cf >= 3:
                 self._add_suggestion(Suggestion(
-                    title=f"工具 {tool_name} 连续失败 {cf} 次",
-                    detail=f"成功率 {sr:.1%}，平均延迟 {ms:.0f}ms，熔断状态: {s['circuit_state']}",
+                    title=f"工具 {tool_name} 连续失败",
+                    detail=f"连续失败 {cf} 次，成功率 {sr:.1%}，平均延迟 {ms:.0f}ms，熔断状态: {s['circuit_state']}",
                     action="1. 检查工具依赖服务是否正常\n2. 查看错误日志\n3. 考虑增加超时时间或降级策略",
                     priority=9,
                 ))
@@ -247,16 +250,33 @@ class PerformanceMonitor:
         threshold, severity, operator = self.THRESHOLDS[metric]
         triggered = (operator == "less_than" and value < threshold) or \
                     (operator == "greater_than" and value > threshold)
-        if triggered:
-            alert = Alert(
-                severity=severity,
-                metric=f"{metric}:{label}",
-                message=f"{label} 的 {metric} = {value:.3f}，阈值 {threshold}",
-                value=value,
-                threshold=threshold,
-            )
-            self._alerts.append(alert)
-            logger.warning(f"[{severity.value.upper()}] {alert.message}")
+        # Alert.metric 是 "指标:对象" 复合键：同一条越界指标原地更新而不堆新条目，
+        # 不同 agent / 工具各自保留一条，恢复时才让位给 resolved。
+        key      = f"{metric}:{label}"
+        existing = next((a for a in self._alerts if a.metric == key and not a.resolved), None)
+        message  = f"{label} 的 {metric} = {value:.3f}，阈值 {threshold}"
+
+        if not triggered:
+            if existing is not None:
+                existing.resolved = True
+            return
+
+        if existing is not None:
+            existing.value   = value
+            existing.message = message
+            existing.ts      = datetime.now().isoformat()
+            return
+
+        alert = Alert(
+            severity=severity,
+            metric=key,
+            message=message,
+            value=value,
+            threshold=threshold,
+        )
+        self._alerts.append(alert)
+        # 只在告警首次出现时打日志：持续越界时每 10s 重复一条没有新信息
+        logger.warning(f"[{severity.value.upper()}] {alert.message}")
 
     def _generate_routing_suggestions(self, agent_stats: Dict[str, Any]) -> None:
         """

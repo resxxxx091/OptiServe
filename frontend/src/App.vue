@@ -123,6 +123,10 @@
                 <span>会话 ID</span>
                 <input v-model="settings.conversationId" @change="persist" placeholder="自动生成" />
               </label>
+              <label>
+                <span>访问令牌</span>
+                <input v-model="settings.apiToken" @change="persist" type="password" placeholder="留空表示后端未启用鉴权" />
+              </label>
               <div class="side-actions">
                 <button @click="refreshConsole">刷新</button>
               </div>

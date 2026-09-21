@@ -7,9 +7,11 @@ LLM / embedding / reranker / Redis / Milvus 五类外部依赖在启动时逐个
 任一不通直接抛错终止启动，不带着残缺依赖对外服务。
 """
 import asyncio
+import hmac
 import logging
 import os
 import pathlib
+import re
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -22,8 +24,10 @@ if _ROOT not in sys.path:
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import Depends, FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field
 
 from core.degradation import Dep, DepState, collect_degraded, set_status, statuses
@@ -37,6 +41,33 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# URL 里的凭据段：scheme://user:pass@host → scheme://host
+_CREDS_RE = re.compile(r"://[^/@]*@")
+# 光洗 URL 形态不够：异常文本常把密码单独复述一遍（"…(real=xxx)"），只能按值来洗
+_SECRET_ENV_KEYS = (
+    "DEEPSEEK_API_KEY", "EMBEDDING_API_KEY", "RERANK_API_KEY",
+    "REDIS_PASSWORD", "MILVUS_TOKEN", "OPTISERVE_API_TOKEN",
+)
+
+
+def _redact_creds(text: str) -> str:
+    """洗掉字符串里的凭据：`scheme://user:pass@` 形态的 URL，以及已知密钥的字面值。
+
+    URL 用子串替换而非 urlsplit：detail 里常见的是把 URI 嵌进异常文本或拼接串，
+    整串解析会失败并让凭据原样漏出去。短于 6 位的值不替换，免得把正常词洗花。
+    """
+    text = _CREDS_RE.sub("://", text)
+    for key in _SECRET_ENV_KEYS:
+        value = os.getenv(key) or ""
+        if len(value) >= 6:
+            text = text.replace(value, "***")
+    return text
+
+
+def _api_token() -> str:
+    """访问令牌。用函数而非模块常量，避免在 import 期就把值冻住。"""
+    return os.getenv("OPTISERVE_API_TOKEN", "")
 
 BANNER = r"""
     ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ
@@ -83,8 +114,10 @@ async def _gate(dep: Dep, probe: Awaitable[str]) -> None:
     try:
         detail = await probe
     except Exception as ex:
-        # 只取异常首行：响应体里可能带回密钥片段，不适合进 /health
-        msg = f"{type(ex).__name__}: {(str(ex).splitlines() or [''])[0][:160]}"
+        # 只取异常首行 + 限长：响应体里可能带回密钥片段，不适合进 /health
+        msg = _redact_creds(
+            f"{type(ex).__name__}: {(str(ex).splitlines() or [''])[0][:160]}"
+        )
         set_status(dep, DepState.UNAVAILABLE, msg)
         raise RuntimeError(f"{dep.value} 依赖不可用，服务拒绝启动（{msg}）") from ex
     set_status(dep, DepState.OK, detail)
@@ -142,7 +175,7 @@ async def _probe_redis(redis_url: str) -> str:
         await client.ping()
     finally:
         await client.aclose()
-    return redis_url
+    return _redact_creds(redis_url)
 
 
 @asynccontextmanager
@@ -152,6 +185,7 @@ async def lifespan(app: FastAPI):
     print(BANNER, flush=True)
 
     from agents.agent_orchestrator import AgentOrchestrator, build_shared_rag_tools
+    from agents.base import _env_int
     from core.intent_recognizer import IntentRecognizer
     from core.vector_store import VectorStoreConfig
     from evaluation.evaluator import EndToEndEvaluator
@@ -225,7 +259,7 @@ async def lifespan(app: FastAPI):
             raise RuntimeError("记忆的向量层未就绪")
         if not await _kb.start():
             raise RuntimeError("知识库的向量层未就绪")
-        return f"{vector_cfg.milvus_uri}，知识库 {await _kb.doc_count_async()} 个片段"
+        return f"{_redact_creds(vector_cfg.milvus_uri)}，知识库 {await _kb.doc_count_async()} 个片段"
 
     await _gate(Dep.MILVUS, probe_milvus())
 
@@ -265,6 +299,8 @@ async def lifespan(app: FastAPI):
         orchestrator=_orchestrator,
         tool_manager=_tool_manager,
         interval_s=float(os.getenv("MONITOR_INTERVAL", "10")),
+        alert_max=_env_int("OPTISERVE_MONITOR_ALERT_MAX", 200),
+        suggestion_max=_env_int("OPTISERVE_MONITOR_SUGGESTION_MAX", 50),
     )
     await _monitor.start()
 
@@ -307,18 +343,45 @@ async def lifespan(app: FastAPI):
 
 
 # ── FastAPI ───────────────────────────────────────────────────────────────────
+# HTTPBearer(auto_error=False) 只为在 openapi 里写出 securitySchemes，让 Swagger 的
+# Authorize 输入框可用；强制鉴权只在下述 middleware 一处（auto_error=True 会让缺 header
+# 的请求在依赖层先吃 403，与 middleware 的 401 撞成两套错误码）。
 app = FastAPI(
     title="OptiServe 智能客服",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
+    dependencies=[Depends(HTTPBearer(auto_error=False))],
 )
 
+# 文档三件套本身不含凭据，豁免换取"能在 /docs 里填 token 调接口"；
+# 代价是接口契约对该端口可达者公开，而 API_HOST 默认回环监听已把范围收到本机。
+_PUBLIC_PATHS = {"/docs", "/redoc", "/openapi.json"}
+
+
+@app.middleware("http")
+async def require_token(request, call_next):
+    token = _api_token()
+    if not token or request.method == "OPTIONS" or request.url.path in _PUBLIC_PATHS:
+        return await call_next(request)
+    supplied = request.headers.get("authorization", "").encode()
+    if not hmac.compare_digest(supplied, f"Bearer {token}".encode()):
+        return JSONResponse(status_code=401, content={"detail": "缺少或无效的访问令牌"})
+    return await call_next(request)
+
+
+# CORS 放在鉴权 middleware 之后添加：后加入的在外层，这样 401 响应也带得上
+# Access-Control-Allow-*，跨源前端才读得到错误体而不是报成网络错误。
+_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("OPTISERVE_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -730,7 +793,7 @@ async def run_eval(body: Optional[EvalRunInput] = None):
 if __name__ == "__main__":
     uvicorn.run(
         "api.main:app",
-        host=os.getenv("API_HOST", "0.0.0.0"),
+        host=os.getenv("API_HOST", "127.0.0.1"),
         port=int(os.getenv("API_PORT", "8000")),
         reload=os.getenv("APP_ENV") == "development",
     )
