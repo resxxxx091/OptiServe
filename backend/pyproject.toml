@@ -1,0 +1,35 @@
+[project]
+name = "optiserve"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "langchain-deepseek>=1.1.0",
+    "langfuse>=3,<4",
+    "langgraph>=1.2.11",
+    "pydantic>=2.13.5",
+    "pymilvus>=2.6,<3",
+    "python-dotenv>=1.2.3",
+    "python-multipart>=0.0.32",
+    "redis>=8.1.0",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["ignore::DeprecationWarning"]

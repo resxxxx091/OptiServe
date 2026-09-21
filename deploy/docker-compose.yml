@@ -1,0 +1,126 @@
+# 只部署中间件：Redis + Milvus（etcd / MinIO 是 Milvus standalone 的内部依赖）。
+# 前后端不进容器——后端用本机 `uvicorn api/main.py`（工作目录 backend/）、前端用本机 `npm run dev`（工作目录 frontend/）。
+#
+# 启动（工作目录 = 本文件所在的 deploy/）：
+#   docker compose --env-file ../backend/.env up -d
+#   （没有 service 需要构建，不要再加 --build）
+#
+# ${REDIS_PASSWORD} 的插值只认 --env-file 指向的文件，不读容器里的 env_file，缺这个参数直接报缺变量。
+# 全项目只有 backend/.env 这一份真实密钥：本机进程靠 load_dotenv() 从 backend/ 读到它，
+# 这个栈靠上面的 --env-file 读到它，不要再复制出第二份 .env。
+#
+# 本栈对宿主机发布两个端口，供本机进程直连：
+#   redis   localhost:6379
+#   milvus  localhost:19530
+# etcd / MinIO 只在栈内被 Milvus 用，不对外发布。
+#
+# 本机 .env 里对应的连接串要指回宿主机口（不是容器名）：
+#   REDIS_URL=redis://:<REDIS_PASSWORD>@localhost:6379/0
+#   MILVUS_URI=http://localhost:19530
+
+name: optiserve
+
+services:
+
+  # ── Redis 缓存（工作记忆）────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: optiserve-redis
+    # 密码只在这里出现一次：注入容器环境，再供 command 与健康检查读取（$$ 转义给容器内的 shell）
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD 未设置，启动请加 --env-file ../.env}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - optiserve-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Milvus 依赖：etcd（元数据）+ MinIO（对象存储）────────────────────────────
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.25
+    container_name: optiserve-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    # 服务名必须是 etcd：Milvus 侧靠 DNS 解析 http://etcd:2379
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    restart: unless-stopped
+    networks:
+      - optiserve-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    container_name: optiserve-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - minio-data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    restart: unless-stopped
+    networks:
+      - optiserve-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ── Milvus 向量库（情景记忆 + 用户画像 + RAG 知识库）─────────────────────────
+  milvus:
+    image: milvusdb/milvus:v2.6.24
+    container_name: optiserve-milvus
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      MINIO_REGION: us-east-1
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    ports:
+      - "19530:19530"
+    volumes:
+      - milvus-data:/var/lib/milvus
+    restart: unless-stopped
+    networks:
+      - optiserve-network
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+
+# ── 网络 ────────────────────────────────────────────────────────────────────
+networks:
+  optiserve-network:
+    driver: bridge
+
+# ── 数据卷 ──────────────────────────────────────────────────────────────────
+volumes:
+  redis-data:
+  etcd-data:
+  minio-data:
+  milvus-data:
