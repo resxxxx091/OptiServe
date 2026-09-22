@@ -26,7 +26,7 @@ export function saveSettings(settings) {
 }
 
 export function requestHealth(signal) {
-  return requestJson('/health', { signal })
+  return requestJson('/health', { signal }).then(normalizeHealthResponse)
 }
 
 export function requestMonitor(signal) {
@@ -51,7 +51,7 @@ export function runEvaluation(body = null) {
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
     timeoutMs: TIMEOUT.evaluation
-  })
+  }).then(normalizeEvaluationResponse)
 }
 
 export function requestSearch(query, topK = 5, signal) {
@@ -137,6 +137,39 @@ function normalizeSearchResponse(raw) {
     degraded: Boolean(raw.degraded),
     error: raw.error || '',
     stages: raw.stages || {}
+  }
+}
+
+/* /health 的 dependencies 是启动闸门逐项探测的结果：state 只会是 ok（不通的那一项会让服务
+   直接拒绝启动），detail 是真实接上的端点与条数摘要。unhealthy 预留给将来的运行期探活。 */
+function normalizeHealthResponse(raw) {
+  const dependencies = Object.entries(raw?.dependencies || {}).map(([source, info]) => ({
+    source,
+    state: info?.state || 'unknown',
+    detail: info?.detail || ''
+  }))
+  return {
+    status: raw?.status || 'ok',
+    dependencies,
+    unhealthy: dependencies.filter(item => item.state !== 'ok')
+  }
+}
+
+function normalizeEvaluationResponse(raw) {
+  return {
+    passRate: Number(raw?.pass_rate ?? 0),
+    total: Number(raw?.total ?? 0),
+    passed: Number(raw?.passed ?? 0),
+    avgScores: raw?.avg_scores || {},
+    regressions: raw?.regressions || [],
+    recommendations: raw?.recommendations || [],
+    results: (raw?.results || []).map(item => ({
+      testId: item?.test_id || '',
+      passed: Boolean(item?.passed),
+      scores: item?.scores || {},
+      detail: item?.detail || '',
+      metadata: item?.metadata || {}
+    }))
   }
 }
 

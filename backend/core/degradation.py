@@ -6,6 +6,8 @@
 随响应一起返回，避免只留一行 warning、响应里完全看不出降级。
 """
 import logging
+import os
+import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -13,6 +15,28 @@ from enum import Enum
 from typing import Dict, Iterator, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# URL 里的凭据段：scheme://user:pass@host → scheme://host
+_CREDS_RE = re.compile(r"://[^/@]*@")
+# 光洗 URL 形态不够：异常文本常把密码单独复述一遍（"…(real=xxx)"），只能按值来洗
+_SECRET_ENV_KEYS = (
+    "DEEPSEEK_API_KEY", "EMBEDDING_API_KEY", "RERANK_API_KEY",
+    "REDIS_PASSWORD", "MILVUS_TOKEN", "OPTISERVE_API_TOKEN",
+)
+
+
+def redact_creds(text: str) -> str:
+    """洗掉字符串里的凭据：`scheme://user:pass@` 形态的 URL，以及已知密钥的字面值。
+
+    URL 用子串替换而非 urlsplit：detail 里常见的是把 URI 嵌进异常文本或拼接串，
+    整串解析会失败并让凭据原样漏出去。短于 6 位的值不替换，免得把正常词洗花。
+    """
+    text = _CREDS_RE.sub("://", text)
+    for key in _SECRET_ENV_KEYS:
+        value = os.getenv(key) or ""
+        if len(value) >= 6:
+            text = text.replace(value, "***")
+    return text
 
 
 class Dep(str, Enum):
@@ -52,6 +76,10 @@ def degrade(source: Dep, code: str, message: str, *, log: bool = True) -> None:
 
     log=False 用于配置类缺席——那种情况启动探测时已经报过一次，
     再每请求刷日志就是噪音。
+
+    事件 message 会随 /chat 响应回到终端用户手里，而调用方常把异常原文拼进来
+    （里面可能有 URI 里的账号密码段或密钥字面值），入事件前统一洗一遍；
+    服务端日志保留原文，运维排障要看得到真实细节。
     """
     if log:
         logger.warning(f"降级 [{source.value}/{code}] {message}")
@@ -60,7 +88,7 @@ def degrade(source: Dep, code: str, message: str, *, log: bool = True) -> None:
         return
     if any(e.source == source.value and e.code == code for e in events):
         return
-    events.append(DegradeEvent(source=source.value, code=code, message=message))
+    events.append(DegradeEvent(source=source.value, code=code, message=redact_creds(message)))
 
 
 @contextmanager

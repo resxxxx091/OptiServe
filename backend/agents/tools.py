@@ -166,7 +166,8 @@ def build_shared_rag_tools(tool_manager: Any) -> Dict[str, AgentToolSpec]:
 
     async def search_knowledge_base(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
         query = str(args.get("query") or req.message or "").strip()
-        top_k = int(args.get("top_k", 5) or 5)
+        # top_k 来自 LLM 生成的参数，注入类输入能给出任意大数，检索侧钳住
+        top_k = max(1, min(20, int(args.get("top_k", 5) or 5)))
         if not query:
             return {"success": False, "error": "query 不能为空", "results": []}
         if tool_manager is None:

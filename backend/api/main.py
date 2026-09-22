@@ -7,11 +7,11 @@ LLM / embedding / reranker / Redis / Milvus 五类外部依赖在启动时逐个
 任一不通直接抛错终止启动，不带着残缺依赖对外服务。
 """
 import asyncio
+import contextvars
 import hmac
 import logging
 import os
 import pathlib
-import re
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -24,15 +24,17 @@ if _ROOT not in sys.path:
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, UploadFile, File
+from fastapi import Depends, FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
-from core.degradation import Dep, DepState, collect_degraded, set_status, statuses
+from core.degradation import (
+    Dep, DepState, collect_degraded, redact_creds, set_status, statuses,
+)
 from core.tracing import get_trace_tree, recent_trace_trees, set_finish_hook, start_trace, trace_span
-from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient
+from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient, _env_float
 
 load_dotenv()
 
@@ -41,28 +43,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-# URL 里的凭据段：scheme://user:pass@host → scheme://host
-_CREDS_RE = re.compile(r"://[^/@]*@")
-# 光洗 URL 形态不够：异常文本常把密码单独复述一遍（"…(real=xxx)"），只能按值来洗
-_SECRET_ENV_KEYS = (
-    "DEEPSEEK_API_KEY", "EMBEDDING_API_KEY", "RERANK_API_KEY",
-    "REDIS_PASSWORD", "MILVUS_TOKEN", "OPTISERVE_API_TOKEN",
-)
-
-
-def _redact_creds(text: str) -> str:
-    """洗掉字符串里的凭据：`scheme://user:pass@` 形态的 URL，以及已知密钥的字面值。
-
-    URL 用子串替换而非 urlsplit：detail 里常见的是把 URI 嵌进异常文本或拼接串，
-    整串解析会失败并让凭据原样漏出去。短于 6 位的值不替换，免得把正常词洗花。
-    """
-    text = _CREDS_RE.sub("://", text)
-    for key in _SECRET_ENV_KEYS:
-        value = os.getenv(key) or ""
-        if len(value) >= 6:
-            text = text.replace(value, "***")
-    return text
 
 
 def _api_token() -> str:
@@ -115,7 +95,7 @@ async def _gate(dep: Dep, probe: Awaitable[str]) -> None:
         detail = await probe
     except Exception as ex:
         # 只取异常首行 + 限长：响应体里可能带回密钥片段，不适合进 /health
-        msg = _redact_creds(
+        msg = redact_creds(
             f"{type(ex).__name__}: {(str(ex).splitlines() or [''])[0][:160]}"
         )
         set_status(dep, DepState.UNAVAILABLE, msg)
@@ -175,7 +155,7 @@ async def _probe_redis(redis_url: str) -> str:
         await client.ping()
     finally:
         await client.aclose()
-    return _redact_creds(redis_url)
+    return redact_creds(redis_url)
 
 
 @asynccontextmanager
@@ -185,7 +165,7 @@ async def lifespan(app: FastAPI):
     print(BANNER, flush=True)
 
     from agents.agent_orchestrator import AgentOrchestrator, build_shared_rag_tools
-    from agents.base import _env_int
+    from agents.base import _env_float, _env_int
     from core.intent_recognizer import IntentRecognizer
     from core.vector_store import VectorStoreConfig
     from evaluation.evaluator import EndToEndEvaluator
@@ -221,8 +201,8 @@ async def lifespan(app: FastAPI):
     skills_dir = os.getenv("OPTISERVE_SKILLS_DIR", str(pathlib.Path(_ROOT) / "skills"))
     _skill_manager = SkillManager(
         root_dir=skills_dir,
-        max_body_chars=int(os.getenv("OPTISERVE_SKILL_MAX_BODY_CHARS", "6000")),
-        max_index_chars=int(os.getenv("OPTISERVE_SKILL_INDEX_MAX_CHARS", "1500")),
+        max_body_chars=_env_int("OPTISERVE_SKILL_MAX_BODY_CHARS", 6000),
+        max_index_chars=_env_int("OPTISERVE_SKILL_INDEX_MAX_CHARS", 1500),
     )
     _skill_manager.load()
 
@@ -259,7 +239,7 @@ async def lifespan(app: FastAPI):
             raise RuntimeError("记忆的向量层未就绪")
         if not await _kb.start():
             raise RuntimeError("知识库的向量层未就绪")
-        return f"{_redact_creds(vector_cfg.milvus_uri)}，知识库 {await _kb.doc_count_async()} 个片段"
+        return f"{redact_creds(vector_cfg.milvus_uri)}，知识库 {await _kb.doc_count_async()} 个片段"
 
     await _gate(Dep.MILVUS, probe_milvus())
 
@@ -298,7 +278,7 @@ async def lifespan(app: FastAPI):
     _monitor = PerformanceMonitor(
         orchestrator=_orchestrator,
         tool_manager=_tool_manager,
-        interval_s=float(os.getenv("MONITOR_INTERVAL", "10")),
+        interval_s=_env_float("MONITOR_INTERVAL", 10.0),
         alert_max=_env_int("OPTISERVE_MONITOR_ALERT_MAX", 200),
         suggestion_max=_env_int("OPTISERVE_MONITOR_SUGGESTION_MAX", 50),
     )
@@ -325,9 +305,25 @@ async def lifespan(app: FastAPI):
     )
 
     logger.info("OptiServe 已就绪")
+    if not _api_token():
+        logger.warning(
+            "OPTISERVE_API_TOKEN 未设置：/chat、/search 等只读接口对本机全部放行"
+            "（API_HOST 默认回环），写接口已被 require_configured_token 禁用。对外暴露前务必配置。"
+        )
 
     # 启动 FastAPI 服务
     yield
+
+    if _profile_tasks:
+        # 画像更新不阻塞响应，但关服务前给它一个收尾窗口，否则最后几条请求的画像会丢
+        _, pending = await asyncio.wait(_profile_tasks, timeout=PROFILE_DRAIN_TIMEOUT_S)
+        for task in pending:
+            task.cancel()
+        if pending:
+            # cancel 只是投递取消，必须等任务真正解栈再关 Redis/Milvus 客户端，
+            # 否则任务会在已关闭的客户端上抛错
+            await asyncio.gather(*pending, return_exceptions=True)
+            logger.info(f"后台画像更新收尾超时，已取消 {len(pending)} 个")
 
     await _monitor.stop()
     if _trace_exporter is not None:
@@ -368,6 +364,13 @@ async def require_token(request, call_next):
     if not hmac.compare_digest(supplied, f"Bearer {token}".encode()):
         return JSONResponse(status_code=401, content={"detail": "缺少或无效的访问令牌"})
     return await call_next(request)
+
+
+def require_configured_token():
+    """写路由的兜底闸门：middleware 在 token 未配置时是放行的（本地 demo 需要），
+    改状态的路由不能跟着一起裸奔——没配 token 就拒绝写。"""
+    if not _api_token():
+        raise HTTPException(status_code=503, detail="服务未配置 OPTISERVE_API_TOKEN，写操作已禁用")
 
 
 # CORS 放在鉴权 middleware 之后添加：后加入的在外层，这样 401 响应也带得上
@@ -455,7 +458,7 @@ async def skills_summary():
     return _skill_manager.summary()
 
 
-@app.post("/skills/reload", tags=["Skills"])
+@app.post("/skills/reload", tags=["Skills"], dependencies=[Depends(require_configured_token)])
 async def reload_skills():
     """运行时重新扫描 Skill 目录，不需要重启服务。"""
     if _skill_manager is None:
@@ -464,6 +467,46 @@ async def reload_skills():
     if _orchestrator is not None:
         _orchestrator.set_skill_manager(_skill_manager)
     return _skill_manager.summary()
+
+
+# 画像更新是后台任务，但没存引用的 task 可能被 GC 掉、异常也会静默消失，
+# 所以统一挂进这个集合，shutdown 时再等未完成的收尾。
+_profile_tasks: set = set()
+# 同一 user 同时只跑一个画像任务：否则并发请求各自「读旧画像→LLM 提炼→upsert」，
+# 后写覆盖先写，LLM / embedding 调用还会随请求数无界放大。
+_profile_running_users: set = set()
+_profile_slots = asyncio.Semaphore(4)
+# 收尾窗口要盖得住画像链路最坏耗时（LLM 提炼 + embedding 预算 + upsert），5s 必超时
+PROFILE_DRAIN_TIMEOUT_S = _env_float("OPTISERVE_PROFILE_DRAIN_TIMEOUT_S", 15.0)
+
+
+async def _run_profile_update(user_id: str, conv_id: str) -> None:
+    async with _profile_slots:
+        await _memory.update_profile(user_id, conv_id)
+
+
+def _spawn_profile_update(user_id: str, conv_id: str) -> None:
+    if user_id in _profile_running_users:
+        return
+    _profile_running_users.add(user_id)
+    # 全新空 Context：不继承本请求的降级事件列表和 span 树，
+    # 否则后台失败会事后追加进已返回请求的 degradations，/trace 与 /chat 对不上。
+    task = asyncio.create_task(
+        _run_profile_update(user_id, conv_id),
+        context=contextvars.Context(),
+    )
+    _profile_tasks.add(task)
+    task.add_done_callback(lambda t: _forget_profile_task(t, user_id))
+
+
+def _forget_profile_task(task: asyncio.Task, user_id: str) -> None:
+    _profile_tasks.discard(task)
+    _profile_running_users.discard(user_id)
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.warning(f"后台画像更新失败: {error}")
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -523,8 +566,7 @@ async def chat(req: ChatRequest):
                 await _memory.add_message(req.user_id, conv_id, MsgRole.USER, req.message)
                 await _memory.add_message(req.user_id, conv_id, MsgRole.ASSISTANT, result.response)
 
-            # 5. 异步更新用户画像（不阻塞响应）
-            asyncio.create_task(_memory.update_profile(req.user_id, conv_id))
+            # 5. 用户画像异步更新：挪出 with 块后再 spawn，见函数末尾
 
             tr.meta.update(
                 degradations=[event.as_dict() for event in degraded],
@@ -535,7 +577,7 @@ async def chat(req: ChatRequest):
                 escalated=result.escalated,
             )
 
-            return ChatResponse(
+            response = ChatResponse(
                 conv_id=conv_id,
                 request_id=result.request_id,
                 response=result.response,
@@ -556,6 +598,11 @@ async def chat(req: ChatRequest):
                 degraded=bool(degraded),
                 degradations=[event.as_dict() for event in degraded],
             )
+
+    # 出了 collect_degraded / start_trace 的上下文再 spawn：后台失败只进日志，
+    # 不会事后回写这条已返回请求的降级列表和 span 树。
+    _spawn_profile_update(req.user_id, conv_id)
+    return response
 
 
 @app.get("/monitor")
@@ -601,7 +648,11 @@ async def get_trace(trace_id: str):
 
 
 @app.post("/search")
-async def search(query: str, top_k: int = 5):
+async def search(
+    # 参数级钳制：这是给终端用户/前端直连的口子，top_k 不设上限能被拿来做无界检索
+    query: str = Query(..., min_length=1, max_length=2000),
+    top_k: int = Query(5, ge=1, le=50),
+):
     """
     演示检索链路：问题改写 → 混合索引召回 → RRF 粗排 → Reranker 精排 → 断崖截断。
 
@@ -650,11 +701,12 @@ class EvalDialogInput(BaseModel):
 
 class EvalRunInput(BaseModel):
     """评测请求。为空时使用内置默认用例。"""
-    intent_cases: Optional[List[EvalIntentInput]] = None
-    dialog_cases: Optional[List[EvalDialogInput]] = None
+    # 每条用例都会打一次真实 LLM 链路，条数不封顶=单请求可放大成任意次调用
+    intent_cases: Optional[List[EvalIntentInput]] = Field(default=None, max_length=200)
+    dialog_cases: Optional[List[EvalDialogInput]] = Field(default=None, max_length=200)
 
 
-@app.post("/knowledge/add", tags=["知识库"])
+@app.post("/knowledge/add", tags=["知识库"], dependencies=[Depends(require_configured_token)])
 async def add_knowledge(body: BatchDocInput):
     """
     批量导入文档到知识库。
@@ -683,7 +735,7 @@ async def add_knowledge(body: BatchDocInput):
     return {"message": f"成功导入 {count} 个文档片段", "added_chunks": count, "total_chunks": total}
 
 
-@app.post("/knowledge/upload", tags=["知识库"])
+@app.post("/knowledge/upload", tags=["知识库"], dependencies=[Depends(require_configured_token)])
 async def upload_knowledge(file: UploadFile = File(...)):
     """
     上传文件导入知识库。
@@ -699,9 +751,14 @@ async def upload_knowledge(file: UploadFile = File(...)):
 
     from core.vector_store import VectorStoreError
 
-    content = await file.read()
-    if len(content) > 10 * 1024 * 1024:
-        raise HTTPException(413, "文件大小超过 10MB 限制")
+    content = b""
+    # 分块读：先 file.read() 再判大小，等于让 413 校验形同虚设——超大文件已整个进内存
+    while chunk := await file.read(1024 * 1024):
+        content += chunk
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(413, "文件大小超过 10MB 限制")
+    if not content:
+        raise HTTPException(400, "文件为空")
 
     text = content.decode("utf-8", errors="ignore")
     filename = file.filename or "unknown"
@@ -710,10 +767,14 @@ async def upload_knowledge(file: UploadFile = File(...)):
         import json as _json
         try:
             docs = _json.loads(text)
-            if not isinstance(docs, list):
-                raise HTTPException(400, "JSON 文件应为数组格式: [{title, content}, ...]")
         except _json.JSONDecodeError as e:
             raise HTTPException(400, f"JSON 解析失败: {e}")
+        try:
+            # 元素结构也过一遍 DocInput：只判 isinstance(list) 时，非 dict 元素
+            # 会一路钻到 knowledge_base 里抛 AttributeError 变 500
+            docs = [d.model_dump() for d in TypeAdapter(List[DocInput]).validate_python(docs)]
+        except Exception as e:
+            raise HTTPException(400, f"JSON 内容应为 [{{title, content}}, ...] 数组: {e}")
     else:
         # txt / md：整个文件作为一篇文档
         title = filename.rsplit(".", 1)[0] if "." in filename else filename
@@ -739,7 +800,7 @@ async def knowledge_stats():
     return {"total_chunks": await _kb.doc_count_async()}
 
 
-@app.post("/eval/run")
+@app.post("/eval/run", dependencies=[Depends(require_configured_token)])
 async def run_eval(body: Optional[EvalRunInput] = None):
     """运行内置评测用例，返回评测报告。"""
     if _evaluator is None:

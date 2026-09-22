@@ -14,8 +14,8 @@
       </nav>
 
       <div class="topbar-tools">
-        <span class="environment-pill">
-          <i :class="healthOk ? 'online' : 'offline'"></i>
+        <span class="environment-pill" :title="dependencyHint">
+          <i :class="healthDot"></i>
           {{ healthLabel }}
         </span>
         <span class="topbar-divider" aria-hidden="true"></span>
@@ -221,6 +221,20 @@
                 </svg>
                 当前没有活跃告警。
               </p>
+              <dl v-if="healthDeps.length" class="dep-list">
+                <div v-for="dep in healthDeps" :key="dep.source">
+                  <dt :class="dep.state === 'ok' ? 'success' : 'warn'">{{ dep.source }}</dt>
+                  <dd :title="dep.detail || dep.state">{{ dep.detail || dep.state }}</dd>
+                </div>
+              </dl>
+              <div v-if="runtimeChips.length" class="runtime-chips">
+                <span v-for="chip in runtimeChips" :key="chip.key" :class="chip.tone" :title="chip.title">{{ chip.text }}</span>
+              </div>
+              <ul v-if="monitorSuggestions.length" class="suggestion-list">
+                <li v-for="item in monitorSuggestions" :key="item.title" :title="item.action">
+                  <em>P{{ item.priority }}</em><span>{{ item.title }}</span>
+                </li>
+              </ul>
             </section>
           </div>
         </aside>
@@ -413,24 +427,60 @@
 
       <div v-if="evalData" class="evaluation-content">
         <div class="evaluation-summary">
-          <div class="score-hero"><span>通过率</span><strong>{{ formatPercent(evalData.pass_rate) }}</strong><small>{{ evalData.passed }} / {{ evalData.total }} 条用例通过</small></div>
+          <div class="score-hero"><span>通过率</span><strong>{{ formatPercent(evalData.passRate) }}</strong><small>{{ evalData.passed }} / {{ evalData.total }} 条用例通过</small></div>
           <div><span>通过</span><strong>{{ evalData.passed }}</strong></div>
           <div><span>总数</span><strong>{{ evalData.total }}</strong></div>
-          <div><span>回归</span><strong :class="evalData.regressions?.length ? 'danger' : 'success'">{{ evalData.regressions?.length || 0 }}</strong></div>
+          <div><span>回归</span><strong :class="evalData.regressions.length ? 'danger' : 'success'">{{ evalData.regressions.length }}</strong></div>
+        </div>
+        <div v-if="evalData.regressions.length" class="regression-list">
+          <p v-for="(item, index) in evalData.regressions" :key="index">{{ item }}</p>
         </div>
         <div class="evaluation-layout">
           <section class="workspace-card">
             <div class="card-heading"><h2>平均评分</h2><code>0 – 1</code></div>
             <div class="score-list">
-              <div v-for="(value, key) in evalData.avg_scores" :key="key"><span>{{ key }}</span><i><b :style="{ width: `${Math.min(Number(value) * 100, 100)}%` }"></b></i><strong>{{ Number(value).toFixed(2) }}</strong></div>
+              <div v-for="(value, key) in evalData.avgScores" :key="key"><span>{{ key }}</span><i><b :style="{ width: `${Math.min(Number(value) * 100, 100)}%` }"></b></i><strong>{{ Number(value).toFixed(2) }}</strong></div>
             </div>
           </section>
           <section class="workspace-card">
-            <div class="card-heading"><h2>优化建议</h2><code>{{ evalData.recommendations?.length || 0 }} 条</code></div>
-            <div v-if="evalData.recommendations?.length" class="recommendations"><p v-for="(item, index) in evalData.recommendations" :key="index">{{ item }}</p></div>
+            <div class="card-heading"><h2>优化建议</h2><code>{{ evalData.recommendations.length }} 条</code></div>
+            <div v-if="evalData.recommendations.length" class="recommendations"><p v-for="(item, index) in evalData.recommendations" :key="index">{{ item }}</p></div>
             <div v-else class="workspace-empty">本次评测没有返回额外建议。</div>
           </section>
         </div>
+        <section class="workspace-card case-workspace">
+          <div class="card-heading">
+            <h2>用例明细</h2>
+            <button v-if="failedCount" class="link-button" @click="onlyFailed = !onlyFailed">{{ onlyFailed ? `看全部 ${evalData.results.length} 条` : `只看失败 ${failedCount} 条` }}</button>
+            <code v-else>{{ evalData.results.length }} 条全通过</code>
+          </div>
+          <div v-if="visibleCases.length" class="case-list">
+            <details v-for="(item, index) in visibleCases" :key="`${item.testId}-${index}`" :open="!item.passed" :class="item.passed ? 'pass' : 'fail'">
+              <summary>
+                <span class="case-state">{{ item.passed ? 'PASS' : 'FAIL' }}</span>
+                <strong>{{ item.testId }}</strong>
+                <span class="case-detail">{{ item.detail }}</span>
+              </summary>
+              <div class="case-body">
+                <div class="score-chips">
+                  <span v-for="(value, key) in item.scores" :key="key">{{ key }} {{ Number(value).toFixed(2) }}</span>
+                </div>
+                <div v-if="item.metadata.cases?.length" class="intent-cases">
+                  <div v-for="(sub, subIndex) in item.metadata.cases" :key="subIndex" :class="['intent-case', { wrong: sub.expected !== sub.predicted }]">
+                    <span>{{ sub.message }}</span>
+                    <code>{{ sub.expected }} → {{ sub.predicted }} · {{ formatPercent(sub.confidence) }}</code>
+                  </div>
+                </div>
+                <template v-else>
+                  <p v-if="item.metadata.question" class="case-line"><b>Q</b><span>{{ item.metadata.question }}</span></p>
+                  <p v-if="item.metadata.response" class="case-line"><b>A</b><span>{{ item.metadata.response }}</span></p>
+                  <p v-if="caseFooter(item)" class="case-note">{{ caseFooter(item) }}</p>
+                </template>
+              </div>
+            </details>
+          </div>
+          <div v-else class="workspace-empty">{{ evalData.results.length ? '这一批里没有失败的用例。' : '后端没有返回逐用例结果。' }}</div>
+        </section>
       </div>
       <div v-else class="evaluation-empty">
         <div class="empty-symbol">
@@ -475,6 +525,7 @@ const draft = ref('')
 const busy = ref(false)
 const healthOk = ref(false)
 const healthLabel = ref('未检查')
+const healthDeps = ref([])
 const knowledgeCount = ref('-')
 const searchQuery = ref('退款多久能到账')
 const searchResults = ref([])
@@ -495,6 +546,7 @@ const recentTraces = ref([])
 const selectedTraceId = ref('')
 const selectedTrace = ref(null)
 const evalData = ref(null)
+const onlyFailed = ref(false)
 const toast = ref('')
 let toastTimer
 let messageSequence = 0
@@ -505,6 +557,52 @@ const userInitial = computed(() => (settings.userId || 'U').slice(0, 1).toUpperC
 const activeAlerts = computed(() => monitorData.value.active_alerts || [])
 const agentCount = computed(() => Object.keys(monitorData.value.agent_stats || {}).length)
 const totalRequests = computed(() => Object.values(monitorData.value.agent_stats || {}).reduce((sum, item) => sum + Number(item.total || 0), 0))
+const monitorSuggestions = computed(() => monitorData.value.suggestions || [])
+
+// 闸门探测的依赖全通才会亮绿；出现非 ok 状态（将来的运行期探活）转琥珀
+const healthDot = computed(() => {
+  if (!healthOk.value) return 'offline'
+  return healthDeps.value.some(item => item.state !== 'ok') ? 'degraded' : 'online'
+})
+const dependencyHint = computed(() =>
+  healthDeps.value.length
+    ? healthDeps.value.map(item => `${item.source}: ${item.state}`).join('\n')
+    : '未取到依赖探测结果'
+)
+
+/* /monitor 的 tool_stats 与 routing 是"此刻还不对"的状态：熔断器离开 closed、Agent 被
+   Monitor 降权。两者都为空时整块不渲染。 */
+const runtimeChips = computed(() => {
+  const chips = []
+  for (const [name, stat] of Object.entries(monitorData.value.tool_stats || {})) {
+    const state = stat?.circuit_state
+    if (!state || state === 'closed') continue
+    chips.push({
+      key: `tool-${name}`,
+      text: `${name} · ${state}`,
+      tone: state === 'open' ? 'chip-err' : 'chip-warn',
+      title: `熔断 ${state}：连续失败 ${stat.consecutive_fails ?? 0} 次，成功率 ${formatPercent(stat.success_rate)}`
+    })
+  }
+  const routing = monitorData.value.routing || {}
+  for (const [name, info] of Object.entries(routing.agents || {})) {
+    const penalty = Number(info?.penalty ?? 0)
+    if (penalty <= 0) continue
+    chips.push({
+      key: `agent-${name}`,
+      text: `${name} · 降权 ${penalty}`,
+      tone: info?.demoted ? 'chip-err' : 'chip-warn',
+      title: `路由 penalty ${penalty}，改判阈值 ${routing.demote_threshold ?? '-'}${info?.demoted ? '（已越线：路由会改选意图合法的备选 Agent）' : ''}`
+    })
+  }
+  return chips
+})
+
+const failedCount = computed(() => (evalData.value?.results || []).filter(item => !item.passed).length)
+const visibleCases = computed(() => {
+  const results = evalData.value?.results || []
+  return onlyFailed.value ? results.filter(item => !item.passed) : results
+})
 
 /* /search 的 stages 是「各级还剩几条」，只有粗排之后的三级是同一量纲的文档条数，
    所以它们画成漏斗；改写条数与召回路数是另一种单位，只做旁注。 */
@@ -592,12 +690,14 @@ async function refreshConsole() {
 async function checkHealth(signal) {
   try {
     const data = await requestHealth(signal)
+    healthDeps.value = data.dependencies
     healthOk.value = data.status === 'ok'
-    healthLabel.value = data.status || 'ok'
+    healthLabel.value = data.unhealthy.length ? `${data.status} · ${data.unhealthy.length} 项降级` : data.status
   } catch (error) {
     if (error.cancelled) return
     healthOk.value = false
     healthLabel.value = '不可用'
+    healthDeps.value = []
     showToast(`后端不可用：${error.message}`)
   }
 }
@@ -783,10 +883,21 @@ async function runEvaluation() {
   busy.value = true
   try {
     evalData.value = await requestEvaluation()
-    showToast('评测完成')
+    onlyFailed.value = false
+    const failures = evalData.value.results.filter(item => !item.passed).length
+    showToast(failures ? `评测完成：${failures} 条用例未通过` : '评测完成')
   } catch (error) {
     showToast(`评测运行失败：${error.message}`)
   } finally { busy.value = false }
+}
+
+function caseFooter(item) {
+  const meta = item.metadata || {}
+  return [
+    meta.agent_type,
+    meta.intent,
+    meta.judge_failed ? `裁判失败：${meta.judge_error || 'unknown'}` : ''
+  ].filter(Boolean).join(' · ')
 }
 
 async function loadToolTrace(requestId) {

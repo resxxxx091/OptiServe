@@ -225,7 +225,8 @@ class KnowledgeBase:
         ))
         """
         query = params.get("query", "")
-        limit = int(params.get("top_k", 5) or 5)
+        # 内部检索链路会传 max(top_k, recall_k)，这里只挡直连调用塞进来的天文数字
+        limit = max(1, min(500, int(params.get("top_k", 5) or 5)))
         return await self.recall_async(query, limit=limit)
 
     # ── 内部方法 ──────────────────────────────────────────────────────────────

@@ -309,9 +309,11 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .environment-pill i.online { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
 .environment-pill i.offline { background: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
+.environment-pill i.degraded { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
 
 .environment-pill:has(.online) { border-color: rgba(63, 191, 99, 0.3); }
 .environment-pill:has(.offline) { border-color: rgba(242, 109, 109, 0.32); }
+.environment-pill:has(.degraded) { border-color: color-mix(in srgb, var(--warn) 32%, transparent); }
 
 .docs-link {
   display: inline-flex;
@@ -1000,6 +1002,66 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   line-height: 1.6;
 }
 
+/* /health 的 dependencies：逐项列出闸门探测的结论，detail 是真实接上的端点与条数 */
+.dep-list { display: grid; margin: var(--sp-3) 0 0; }
+
+.dep-list div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: var(--sp-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dep-list div:last-child { border-bottom: 0; }
+.dep-list dt { color: var(--text-soft); font-family: var(--font-mono); font-size: 11px; }
+/* .dep-list dt 的特异性压过裸 .success/.warn，非 ok 依赖需要单独提回来才显琥珀色 */
+.dep-list dt.warn { color: var(--warn); }
+.dep-list dt.success { color: var(--ok); }
+
+.dep-list dd {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 熔断中 / 被降权：只在状态离开健康值时出现 */
+.runtime-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--sp-3); }
+
+.runtime-chips span {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: default;
+}
+
+.runtime-chips .chip-warn { background: var(--warn-soft); color: var(--warn); }
+.runtime-chips .chip-err { background: var(--err-soft); color: var(--err); }
+
+/* Monitor 的在线建议：title 给结论，action 长文放 tooltip */
+.suggestion-list { display: grid; gap: 5px; margin: var(--sp-3) 0 0; padding: 0; list-style: none; }
+
+.suggestion-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.suggestion-list em {
+  flex: 0 0 auto;
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-style: normal;
+}
+
 /* ===================== 知识库 / 链路 / 评测 布局 ===================== */
 
 .knowledge-layout, .trace-layout, .evaluation-layout {
@@ -1256,6 +1318,144 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   color: var(--text-soft);
   font-size: 12px;
   line-height: 1.65;
+}
+
+/* regressions 是"比基线差在哪"，比建议更硬，用 err 边 */
+.regression-list { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+.regression-list p {
+  margin: 0;
+  padding: 9px 10px;
+  border-left: 2px solid var(--err);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--bg-soft);
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+/* 逐用例结果：默认折叠，失败的那几条后端就带 open */
+.evaluation-content > .case-workspace { margin-top: var(--sp-3); }
+
+.case-list {
+  display: grid;
+  gap: 6px;
+  max-height: 60vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.case-list details {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--kind-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+}
+
+.case-list details.pass { border-left-color: var(--ok); }
+.case-list details.fail { border-left-color: var(--err); }
+
+.case-list summary {
+  display: grid;
+  grid-template-columns: 40px 132px minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding: 8px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.case-list summary::-webkit-details-marker { display: none; }
+.case-list summary:hover { background: var(--panel); }
+
+.case-state {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--fw-strong);
+}
+
+.case-list .pass .case-state { color: var(--ok); }
+.case-list .fail .case-state { color: var(--err); }
+
+.case-list summary strong {
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: var(--fw-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.case-detail {
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.case-body { padding: 0 10px 10px; }
+
+.score-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--sp-2); }
+
+.score-chips span {
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* 意图用例的 metadata.cases：期望 → 预测，错的那条整行标红 */
+.intent-cases { display: grid; gap: 4px; }
+
+.intent-case {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font-size: 12px;
+}
+
+.intent-case span {
+  overflow: hidden;
+  color: var(--text-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intent-case code { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.intent-case.wrong { background: var(--err-soft); }
+.intent-case.wrong code { color: var(--err); }
+
+.case-line {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 6px;
+  margin: 0 0 5px;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.case-line b {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: var(--fw-label);
+}
+
+.case-note {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 /* ===================== 链路列表 ===================== */

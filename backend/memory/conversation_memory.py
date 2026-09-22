@@ -216,7 +216,8 @@ class MemoryManager:
 
     def _schedule_compress(self, user_id: str, conv_id: str) -> None:
         """同一会话同时只允许一个压缩在跑，避免重复摘要与重复落库。"""
-        task_key = f"{user_id}:{conv_id}"
+        # 会话身份直接复用 Redis key：同一个 (user, conv) 在两边是同一个字符串
+        task_key = self._wm_key(user_id, conv_id)
         running = self._compress_tasks.get(task_key)
         if running is not None and not running.done():
             return
@@ -286,9 +287,14 @@ class MemoryManager:
 
     # ── 内部辅助 ──────────────────────────────────────────────────────────────
 
-    async def _get_working_memory(self, user_id: str, conv_id: str) -> List[Message]:
-        key  = self._wm_key(user_id, conv_id)
-        raws = await self._redis.lrange(key, 0, self.WORKING_MAX - 1)
+    async def _get_working_memory(
+        self, user_id: str, conv_id: str, *, full: bool = False
+    ) -> List[Message]:
+        key = self._wm_key(user_id, conv_id)
+        # full=True 给压缩路径用：突发写入可以让列表超过读窗口，
+        # 超窗的旧消息若不入摘要就会在 ltrim 时静默消失
+        end = -1 if full else self.WORKING_MAX - 1
+        raws = await self._redis.lrange(key, 0, end)
         msgs = []
         for raw in reversed(raws):  # Redis lpush 最新在前，reversed 还原时序
             d = json.loads(raw)
@@ -312,7 +318,7 @@ class MemoryManager:
             return
         key = self._wm_key(user_id, conv_id)
         boundary = min(m.timestamp for m in keep)
-        current = await self._get_working_memory(user_id, conv_id)
+        current = await self._get_working_memory(user_id, conv_id, full=True)
         keep_len = sum(1 for m in current if m.timestamp >= boundary)
         if keep_len == 0:
             return  # 列表已被 TTL 等清掉，没有可裁的
@@ -424,12 +430,23 @@ class MemoryManager:
             return {}
 
     @staticmethod
-    def _wm_key(user_id: str, conv_id: str) -> str:
-        return f"wm:{user_id}:{conv_id}"
+    def _key_part(value: Any) -> str:
+        """把 id 变成 Redis key 里安全的一段。
 
-    @staticmethod
-    def _summary_key(user_id: str, conv_id: str) -> str:
-        return f"summary:{user_id}:{conv_id}"
+        key 用 `:` 分段，而 user_id / conv_id 由调用方传入：含 `:` 的 id 会造出与别的
+        (user, conv) 完全同键的歧义 key（`("a:b","c")` 与 `("a","b:c")`）。这里只转义
+        `%` 与 `:` 两个字符，解码按左到右非重叠替换即可还原，因此映射是单射；
+        不用 urllib 的 quote 是为了让中文 id 在 redis-cli 里仍然可读。
+        """
+        return sanitize_text(value).replace("%", "%25").replace(":", "%3A")
+
+    @classmethod
+    def _wm_key(cls, user_id: str, conv_id: str) -> str:
+        return f"wm:{cls._key_part(user_id)}:{cls._key_part(conv_id)}"
+
+    @classmethod
+    def _summary_key(cls, user_id: str, conv_id: str) -> str:
+        return f"summary:{cls._key_part(user_id)}:{cls._key_part(conv_id)}"
 
     @classmethod
     def _profile_doc_id(cls, user_id: str) -> str:
@@ -642,7 +659,9 @@ class CompressState(TypedDict, total=False):
 
 async def load_for_compress(state: CompressState, config) -> Dict[str, Any]:
     mem = _memory(config)
-    messages = await mem._get_working_memory(state["user_id"], state["conv_id"])
+    # full=True：压缩必须看到全部积压消息，只读最近 WORKING_MAX 条时，
+    # 超窗的旧消息既不进摘要也不入情景记忆，却会被 reset 的 ltrim 裁掉
+    messages = await mem._get_working_memory(state["user_id"], state["conv_id"], full=True)
     if len(messages) < mem.COMPRESS_AT:
         return {"keep": []}
     to_compress = messages[:-mem.KEEP_AFTER_COMPRESS]

@@ -1,12 +1,13 @@
 [project]
 name = "optiserve"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "OptiServe 智能客服后端：意图识别 → Agent 路由 → 工具/RAG 检索 → 三级记忆"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
+    # 8 个模块直接 import langchain_core 的 messages / runnables，不能只靠 langchain-deepseek、langgraph 传递带进来
+    "langchain-core>=1.6.3",
     "langchain-deepseek>=1.1.0",
     "langfuse>=3,<4",
     "langgraph>=1.2.11",

@@ -40,6 +40,24 @@ _SPARSE_KEYS = ("sparse", "sparse_embedding", "sparse_vector", "lexical_weights"
 SparseVector = Dict[int, float]
 
 
+def _env_float(name: str, default: float) -> float:
+    """读取可选浮点配置；错误配置不应阻塞服务启动。"""
+    try:
+        return float(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        logger.warning(f"忽略非法浮点配置 {name}={os.getenv(name)!r}")
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    """读取可选整数配置；错误配置不应阻塞服务启动。"""
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        logger.warning(f"忽略非法整数配置 {name}={os.getenv(name)!r}")
+        return default
+
+
 class VectorStoreError(Exception):
     """向量层不可用：Milvus 连不上、collection 维度不一致、embedding 调用失败等。"""
 
@@ -79,19 +97,19 @@ class VectorStoreConfig:
             milvus_uri=os.getenv("MILVUS_URI", "http://localhost:19530"),
             milvus_token=os.getenv("MILVUS_TOKEN", ""),
             milvus_db_name=os.getenv("MILVUS_DB_NAME", "default"),
-            milvus_timeout_s=float(os.getenv("MILVUS_TIMEOUT_S", "10")),
+            milvus_timeout_s=_env_float("MILVUS_TIMEOUT_S", 10.0),
             embedding_base_url=os.getenv("EMBEDDING_BASE_URL", ""),
             embedding_api_key=os.getenv("EMBEDDING_API_KEY", ""),
             embedding_model=os.getenv("EMBEDDING_MODEL", "bge-m3"),
-            embedding_dim=int(os.getenv("EMBEDDING_DIM", "1024")),
-            embedding_timeout_s=float(os.getenv("EMBEDDING_TIMEOUT_S", "15")),
-            embedding_batch=max(1, int(os.getenv("EMBEDDING_BATCH", "32"))),
+            embedding_dim=_env_int("EMBEDDING_DIM", 1024),
+            embedding_timeout_s=_env_float("EMBEDDING_TIMEOUT_S", 15.0),
+            embedding_batch=max(1, _env_int("EMBEDDING_BATCH", 32)),
             embedding_sparse_param=os.getenv("EMBEDDING_SPARSE_PARAM", "return_sparse").strip(),
             rerank_base_url=os.getenv("RERANK_BASE_URL", "").strip(),
             # 多数托管平台 embedding 与 rerank 同一账号同一密钥，不单独配时跟着 embedding 走
             rerank_api_key=(os.getenv("RERANK_API_KEY") or os.getenv("EMBEDDING_API_KEY", "")).strip(),
             rerank_model=os.getenv("RERANK_MODEL", "bge-reranker-v2-m3"),
-            rerank_timeout_s=float(os.getenv("RERANK_TIMEOUT_S", "10")),
+            rerank_timeout_s=_env_float("RERANK_TIMEOUT_S", 10.0),
         )
 
 
