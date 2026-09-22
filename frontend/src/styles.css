@@ -526,6 +526,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .success { color: var(--ok); }
 .danger { color: var(--err); }
+.warn { color: var(--warn); }
 .muted { color: var(--muted); }
 
 .side-card label, .workspace-card label {
@@ -640,6 +641,57 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   line-height: 1.75;
   white-space: pre-wrap;
 }
+
+/* 降级答复不能和正常答复长一样：竖条换 warn 色，事件列在正文下面 */
+.message.degraded { border-left-color: var(--warn); }
+
+.degraded-tag {
+  padding: 1px 5px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.degraded-tag.danger-tag {
+  border-color: var(--err);
+  background: var(--err-soft);
+  color: var(--err);
+}
+
+.degrade-list {
+  display: grid;
+  gap: 4px;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.degrade-list li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 6px 8px;
+  border-left: 2px solid var(--warn);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--panel-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.degrade-list code {
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.degrade-list span { color: var(--text-soft); }
 
 /* ===================== 链路工具调用（侧栏） ===================== */
 
@@ -772,6 +824,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .composer-hint { display: inline-flex; align-items: center; gap: 5px; }
 .composer-bottom button { min-width: 96px; }
+.composer-actions { display: flex; align-items: center; gap: var(--sp-2); }
+.composer-actions .quiet-button { min-width: 0; }
 
 /* ===================== 侧栏 ===================== */
 
@@ -973,6 +1027,81 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 .search-line { display: flex; gap: var(--sp-2); }
 .search-line input { flex: 1; }
 .search-line button { flex: 0 0 auto; }
+
+/* 检索五级漏斗：后端 /search 的 stages 是各级剩余条数，界面上一眼看出在哪一级丢掉的 */
+.search-diag {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+
+.search-diag-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.stage-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+.stage-chips span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.stage-chips span.warn { color: var(--warn); }
+
+.search-error {
+  margin: 0;
+  color: var(--err);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.funnel { display: grid; gap: 7px; }
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: center;
+}
+
+.funnel-row span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funnel-row strong {
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.funnel-row i {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--panel-3);
+}
+
+.funnel-row b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 280ms var(--ease);
+}
 
 .result-list { display: grid; gap: 0; margin-top: var(--sp-3); }
 
@@ -1224,6 +1353,21 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 .trace-tree-summary strong { color: var(--text); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
 
 /* 图例：层级语义色不能只靠颜色辨认，配文字标签 */
+/* span 树的 meta 是 API 层写进 trace 的路由/降级结论：这里回答"为什么走了这个 Agent" */
+.trace-meta {
+  flex: 0 0 auto;
+  max-height: 40%;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.trace-meta .degrade-list { margin: 0; }
+
 .kind-legend {
   display: flex;
   flex-wrap: wrap;

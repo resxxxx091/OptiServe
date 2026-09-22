@@ -56,12 +56,23 @@
           </div>
 
           <div class="messages" ref="messageList">
-            <article v-for="item in messages" :key="item.id" :class="['message', item.role]">
+            <article
+              v-for="item in messages"
+              :key="item.id"
+              :class="['message', item.role, { degraded: item.degraded }]"
+            >
               <div class="message-meta">
                 <span>{{ item.role === 'user' ? 'user' : 'agent' }}</span>
                 <small v-if="item.meta">{{ item.meta }}</small>
+                <em v-if="item.degraded" class="degraded-tag">DEGRADED {{ item.degradations?.length }}</em>
               </div>
               <p>{{ item.content }}</p>
+              <ul v-if="item.degradations?.length" class="degrade-list">
+                <li v-for="(event, index) in item.degradations" :key="`${event.source}-${event.code}-${index}`">
+                  <code>{{ event.source }}/{{ event.code }}</code>
+                  <span>{{ event.message }}</span>
+                </li>
+              </ul>
             </article>
 
             <div v-if="messages.length === 0" class="empty-state">
@@ -93,7 +104,10 @@
               <span class="composer-hint">
                 <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 发送
               </span>
-              <button type="submit" :disabled="busy || !draft.trim()">{{ busy ? '处理中' : '发送' }}</button>
+              <div class="composer-actions">
+                <button v-if="busy" class="quiet-button" @click="cancelChat">取消</button>
+                <button type="submit" :disabled="busy || !draft.trim()">{{ busy ? '处理中' : '发送' }}</button>
+              </div>
             </div>
           </form>
         </section>
@@ -156,9 +170,16 @@
                   <div><dt>意图</dt><dd>{{ lastResponse.intent || '-' }}</dd></div>
                   <div><dt>置信度</dt><dd>{{ formatPercent(lastResponse.routingConfidence) }}</dd></div>
                   <div><dt>知识库</dt><dd :class="lastResponse.knowledgeUsed ? 'success' : 'muted'">{{ lastResponse.knowledgeUsed ? '已使用' : '未使用' }}</dd></div>
+                  <div><dt>降级</dt><dd :class="lastResponse.degraded ? 'warn' : 'muted'">{{ lastResponse.degraded ? `是 · ${lastResponse.degradations.length} 项` : '否' }}</dd></div>
                   <div><dt>转人工</dt><dd :class="lastResponse.escalated ? 'danger' : 'muted'">{{ lastResponse.escalated ? '是' : '否' }}</dd></div>
                 </dl>
                 <p v-if="lastResponse.routingReason" class="routing-reason">{{ lastResponse.routingReason }}</p>
+                <ul v-if="lastResponse.degradations?.length" class="degrade-list">
+                  <li v-for="(event, index) in lastResponse.degradations" :key="`${event.source}-${event.code}-${index}`">
+                    <code>{{ event.source }}/{{ event.code }}</code>
+                    <span>{{ event.message }}</span>
+                  </li>
+                </ul>
                 <div v-if="lastTrace?.trace" class="trace-call-list">
                   <div class="trace-call-title">工具调用</div>
                   <div v-for="(call, index) in lastTrace.trace.toolCalls" :key="`${call.tool_use_id || index}`" class="trace-call-item">
@@ -226,6 +247,23 @@
             <input v-model="searchQuery" placeholder="例如：退款多久到账" @keydown.enter="searchKnowledge" />
             <button @click="searchKnowledge" :disabled="busy || !searchQuery.trim()">搜索</button>
           </div>
+          <div v-if="searchedOnce" class="search-diag">
+            <div class="search-diag-top">
+              <span class="stage-chips">
+                <span v-for="chip in stageChips" :key="chip.text" :class="chip.tone">{{ chip.text }}</span>
+              </span>
+              <span v-if="searchError" class="degraded-tag danger-tag">检索失败</span>
+              <span v-else-if="searchDegraded" class="degraded-tag">DEGRADED</span>
+            </div>
+            <p v-if="searchError" class="search-error">{{ searchError }}</p>
+            <div v-if="funnelRows.length" class="funnel">
+              <div v-for="row in funnelRows" :key="row.label" class="funnel-row">
+                <span>{{ row.label }}</span>
+                <i><b :style="{ width: `${row.width}%` }"></b></i>
+                <strong>{{ row.value }}</strong>
+              </div>
+            </div>
+          </div>
           <div v-if="searchResults.length" class="result-list">
             <article v-for="(item, index) in searchResults" :key="item.id || item.title || index" class="result-item">
               <span class="result-number">{{ String(index + 1).padStart(2, '0') }}</span>
@@ -235,7 +273,7 @@
               </div>
             </article>
           </div>
-          <div v-else class="workspace-empty">输入客户问题开始搜索。</div>
+          <div v-else class="workspace-empty">{{ searchedOnce ? '这次检索没有命中任何片段。' : '输入客户问题开始搜索。' }}</div>
         </section>
 
         <section class="workspace-card import-workspace">
@@ -315,6 +353,29 @@
               <span>{{ selectedTrace.tree.span_count }} spans</span>
               <strong>{{ selectedTrace.tree.latency_ms }} ms</strong>
             </div>
+          </div>
+          <div v-if="traceMeta" class="trace-meta">
+            <dl class="detail-list">
+              <div>
+                <dt>主 Agent</dt>
+                <dd>{{ traceMeta.primaryAgent || traceMeta.agentType || '-' }}</dd>
+              </div>
+              <div>
+                <dt>工具</dt>
+                <dd>{{ traceMeta.toolsUsed.join(' · ') || '-' }}</dd>
+              </div>
+              <div v-if="traceMeta.degradations.length">
+                <dt>降级</dt>
+                <dd class="warn">{{ traceMeta.degradations.length }} 项</dd>
+              </div>
+            </dl>
+            <p v-if="traceMeta.routingReason" class="routing-reason">{{ traceMeta.routingReason }}</p>
+            <ul v-if="traceMeta.degradations.length" class="degrade-list">
+              <li v-for="(event, index) in traceMeta.degradations" :key="`${event.source}-${event.code}-${index}`">
+                <code>{{ event.source }}/{{ event.code }}</code>
+                <span>{{ event.message }}</span>
+              </li>
+            </ul>
           </div>
           <div class="kind-legend" aria-hidden="true">
             <span class="l-orchestrator"><i></i>编排</span>
@@ -417,6 +478,10 @@ const healthLabel = ref('未检查')
 const knowledgeCount = ref('-')
 const searchQuery = ref('退款多久能到账')
 const searchResults = ref([])
+const searchStages = ref({})
+const searchDegraded = ref(false)
+const searchError = ref('')
+const searchedOnce = ref(false)
 const docTitle = ref('退款补充政策')
 const docContent = ref('大促期间退款审核时间可能延长到 3-5 个工作日。')
 const messageList = ref(null)
@@ -441,6 +506,44 @@ const activeAlerts = computed(() => monitorData.value.active_alerts || [])
 const agentCount = computed(() => Object.keys(monitorData.value.agent_stats || {}).length)
 const totalRequests = computed(() => Object.values(monitorData.value.agent_stats || {}).reduce((sum, item) => sum + Number(item.total || 0), 0))
 
+/* /search 的 stages 是「各级还剩几条」，只有粗排之后的三级是同一量纲的文档条数，
+   所以它们画成漏斗；改写条数与召回路数是另一种单位，只做旁注。 */
+const funnelRows = computed(() => {
+  const stages = searchStages.value || {}
+  const rows = [
+    { label: '粗排候选', key: 'coarse' },
+    { label: '精排', key: 'reranked' },
+    { label: '截断返回', key: 'returned' }
+  ]
+    .filter(row => typeof stages[row.key] === 'number')
+    .map(row => ({ label: row.label, value: stages[row.key] }))
+  const max = Math.max(1, ...rows.map(row => row.value))
+  return rows.map(row => ({ ...row, width: Math.max(2, (row.value / max) * 100) }))
+})
+
+const stageChips = computed(() => {
+  const stages = searchStages.value || {}
+  const chips = []
+  if (typeof stages.rewrite === 'number') chips.push({ text: `改写 ${stages.rewrite} 条子查询` })
+  if (typeof stages.recall_paths === 'number') chips.push({ text: `${stages.recall_paths} 路混合召回` })
+  if (stages.recall_failed) chips.push({ text: `${stages.recall_failed} 路召回失败`, tone: 'warn' })
+  return chips
+})
+
+// span 树的 meta 由 API 层写入，只有 /chat 那一路有；/search 的 trace 这里就是空的
+const traceMeta = computed(() => {
+  const meta = selectedTrace.value?.tree?.meta
+  if (!meta || !Object.keys(meta).length) return null
+  return {
+    agentType: meta.agent_type || '',
+    primaryAgent: meta.primary_agent || '',
+    routingReason: meta.routing_reason || '',
+    toolsUsed: meta.tools_used || [],
+    escalated: Boolean(meta.escalated),
+    degradations: meta.degradations || []
+  }
+})
+
 onMounted(() => {
   refreshConsole()
   updateSidebarHeight()
@@ -454,6 +557,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   sidebarObserver?.disconnect?.()
   window.removeEventListener('resize', updateSidebarHeight)
+  consoleController?.abort()
+  chatController?.abort()
 })
 
 function persist() { saveSettings(settings) }
@@ -466,44 +571,59 @@ function updateSidebarHeight() {
   sidebar.style.setProperty('--sidebar-height', `${height}px`)
 }
 
+// 刷新即放弃上一轮：连点刷新时旧请求回来得晚，会把上一轮数据盖回界面上
+let consoleController = null
+let chatController = null
+
 async function refreshConsole() {
-  await Promise.allSettled([checkHealth(), loadStats(), loadMonitor(), loadSkills(), loadRecentTraces()])
+  consoleController?.abort()
+  const controller = new AbortController()
+  consoleController = controller
+  const { signal } = controller
+  await Promise.allSettled([
+    checkHealth(signal),
+    loadStats(signal),
+    loadMonitor(signal),
+    loadSkills(signal),
+    loadRecentTraces(signal)
+  ])
 }
 
-async function checkHealth() {
+async function checkHealth(signal) {
   try {
-    const data = await requestHealth()
+    const data = await requestHealth(signal)
     healthOk.value = data.status === 'ok'
     healthLabel.value = data.status || 'ok'
   } catch (error) {
+    if (error.cancelled) return
     healthOk.value = false
     healthLabel.value = '不可用'
     showToast(`后端不可用：${error.message}`)
   }
 }
 
-async function loadStats() {
+async function loadStats(signal) {
   try {
-    const data = await requestKnowledgeStats()
+    const data = await requestKnowledgeStats(signal)
     knowledgeCount.value = data.total_chunks ?? '-'
   } catch {
     knowledgeCount.value = '-'
   }
 }
 
-async function loadMonitor() {
+async function loadMonitor(signal) {
   try {
-    monitorData.value = await requestMonitor()
-  } catch {
-    monitorData.value = { agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] }
+    monitorData.value = await requestMonitor(signal)
+  } catch (error) {
+    if (!error.cancelled) monitorData.value = { agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] }
   }
 }
 
-async function loadSkills() {
+async function loadSkills(signal) {
   try {
-    skillsData.value = await requestSkills()
-  } catch {
-    skillsData.value = { count: 0, skills: [], errors: [] }
+    skillsData.value = await requestSkills(signal)
+  } catch (error) {
+    if (!error.cancelled) skillsData.value = { count: 0, skills: [], errors: [] }
   }
 }
 
@@ -523,8 +643,10 @@ async function sendMessage() {
   messages.value.push({ id: createMessageId(), role: 'user', content })
   draft.value = ''
   busy.value = true
+  const controller = new AbortController()
+  chatController = controller
   try {
-    const response = await requestChat(settings, content)
+    const response = await requestChat(settings, content, controller.signal)
     if (response.conversationId && !settings.conversationId) {
       settings.conversationId = response.conversationId
       persist()
@@ -533,15 +655,35 @@ async function sendMessage() {
     lastRequestId.value = response.requestId
     lastTrace.value = await loadToolTrace(response.requestId)
     const meta = [response.intent, response.primaryAgent || response.agentType, response.knowledgeUsed ? 'RAG' : '', response.escalated ? '转人工' : ''].filter(Boolean).join(' · ')
-    messages.value.push({ id: createMessageId(), role: 'assistant', content: response.response, meta })
+    messages.value.push({
+      id: createMessageId(),
+      role: 'assistant',
+      content: response.response,
+      meta,
+      degraded: response.degraded,
+      degradations: response.degradations
+    })
     await Promise.allSettled([loadMonitor(), loadRecentTraces()])
   } catch (error) {
-    messages.value.push({ id: createMessageId(), role: 'assistant', content: error.message, meta: '请求失败' })
+    messages.value.push({
+      id: createMessageId(),
+      role: 'assistant',
+      content: error.cancelled ? '已取消这次请求。' : error.message,
+      meta: error.cancelled ? '已取消' : error.timedOut ? '请求超时' : '请求失败',
+      degraded: false,
+      degradations: []
+    })
+    if (error.timedOut) showToast(error.message)
   } finally {
+    chatController = null
     busy.value = false
     await nextTick()
     messageList.value?.scrollTo({ top: messageList.value.scrollHeight, behavior: 'smooth' })
   }
+}
+
+function cancelChat() {
+  chatController?.abort()
 }
 
 function usePrompt(prompt) { draft.value = prompt }
@@ -574,16 +716,16 @@ async function openTrace(traceId) {
   }
 }
 
-async function loadRecentTraces() {
+async function loadRecentTraces(signal) {
   try {
-    const data = await requestRecentTraces(20)
+    const data = await requestRecentTraces(20, signal)
     recentTraces.value = data.items || []
     if (!selectedTraceId.value && recentTraces.value.length) {
       selectedTraceId.value = recentTraces.value[0].trace_id
       selectedTrace.value = await requestTraceTree(selectedTraceId.value)
     }
-  } catch {
-    recentTraces.value = []
+  } catch (error) {
+    if (!error.cancelled) recentTraces.value = []
   }
 }
 
@@ -591,10 +733,23 @@ async function searchKnowledge() {
   busy.value = true
   try {
     const data = await requestSearch(searchQuery.value, 5)
-    searchResults.value = data.results || []
-    showToast(`检索完成，返回 ${searchResults.value.length} 条结果`)
+    searchResults.value = data.results
+    searchStages.value = data.stages
+    searchDegraded.value = data.degraded
+    searchError.value = data.error
+    searchedOnce.value = true
+    if (data.error) {
+      showToast(`检索失败：${data.error}`)
+    } else {
+      showToast(`检索完成，返回 ${data.results.length} 条结果${data.degraded ? '（已降级）' : ''}`)
+    }
     loadRecentTraces()
   } catch (error) {
+    searchResults.value = []
+    searchStages.value = {}
+    searchDegraded.value = false
+    searchError.value = error.message
+    searchedOnce.value = true
     showToast(`检索失败：${error.message}`)
   } finally { busy.value = false }
 }

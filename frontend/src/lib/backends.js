@@ -2,6 +2,16 @@ export const API_BASE = String(import.meta.env.VITE_PYTHON_API_URL || '/api/pyth
 
 const SETTINGS_KEY = 'optiserve.frontend.settings'
 
+/* 这一层只是最外层保险：必须大于后端的对应预算，否则后端还没来得及降级、界面先报错。
+   后端预算是 RETRIEVAL_TOTAL_TIMEOUT_S=45s、OPTISERVE_AGENT_LOOP_TIMEOUT_S=90s。 */
+const TIMEOUT = {
+  read: 10000,
+  search: 60000,
+  write: 120000,
+  chat: 150000,
+  evaluation: 900000
+}
+
 export function createInitialSettings() {
   const saved = readSettings()
   return {
@@ -15,40 +25,43 @@ export function saveSettings(settings) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
 }
 
-export function requestHealth() {
-  return requestJson('/health')
+export function requestHealth(signal) {
+  return requestJson('/health', { signal })
 }
 
-export function requestMonitor() {
-  return requestJson('/monitor')
+export function requestMonitor(signal) {
+  return requestJson('/monitor', { signal })
 }
 
-export function requestSkills() {
-  return requestJson('/skills')
+export function requestSkills(signal) {
+  return requestJson('/skills', { signal })
 }
 
 export function reloadSkills() {
-  return requestJson('/skills/reload', { method: 'POST' })
+  return requestJson('/skills/reload', { method: 'POST', timeoutMs: TIMEOUT.write })
 }
 
-export function requestKnowledgeStats() {
-  return requestJson('/knowledge/stats')
+export function requestKnowledgeStats(signal) {
+  return requestJson('/knowledge/stats', { signal })
 }
 
 export function runEvaluation(body = null) {
   return requestJson('/eval/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined
+    body: body ? JSON.stringify(body) : undefined,
+    timeoutMs: TIMEOUT.evaluation
   })
 }
 
-export function requestSearch(query, topK = 5) {
+export function requestSearch(query, topK = 5, signal) {
   const params = new URLSearchParams({ query, top_k: String(topK) })
-  return requestJson(`/search?${params}`, { method: 'POST' })
+  return requestJson(`/search?${params}`, { method: 'POST', signal, timeoutMs: TIMEOUT.search }).then(
+    normalizeSearchResponse
+  )
 }
 
-export function requestChat(settings, message) {
+export function requestChat(settings, message, signal) {
   return requestJson('/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -56,38 +69,42 @@ export function requestChat(settings, message) {
       message,
       user_id: settings.userId || 'anonymous',
       conv_id: settings.conversationId || undefined
-    })
+    }),
+    signal,
+    timeoutMs: TIMEOUT.chat
   }).then(normalizeChatResponse)
 }
 
-export function requestToolTrace(requestId) {
+export function requestToolTrace(requestId, signal) {
   if (!requestId) return Promise.resolve(null)
-  return requestJson(`/trace/tool/${encodeURIComponent(requestId)}`).then(normalizeToolTraceResponse)
+  return requestJson(`/trace/tool/${encodeURIComponent(requestId)}`, { signal }).then(normalizeToolTraceResponse)
 }
 
-export function requestRecentTraces(limit = 20) {
-  return requestJson(`/trace/recent?limit=${limit}`)
+export function requestRecentTraces(limit = 20, signal) {
+  return requestJson(`/trace/recent?limit=${limit}`, { signal })
 }
 
-export function requestTraceTree(traceId) {
-  return requestJson(`/trace/${encodeURIComponent(traceId)}`)
+export function requestTraceTree(traceId, signal) {
+  return requestJson(`/trace/${encodeURIComponent(traceId)}`, { signal })
 }
 
 export function addKnowledge(documents) {
   return requestJson('/knowledge/add', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ documents })
+    body: JSON.stringify({ documents }),
+    timeoutMs: TIMEOUT.write
   })
 }
 
 export function uploadKnowledge(file) {
   const form = new FormData()
   form.append('file', file)
-  return requestJson('/knowledge/upload', { method: 'POST', body: form })
+  return requestJson('/knowledge/upload', { method: 'POST', body: form, timeoutMs: TIMEOUT.write })
 }
 
 function normalizeChatResponse(raw) {
+  const degradations = normalizeDegradations(raw.degradations)
   return {
     conversationId: raw.conv_id || '',
     requestId: raw.request_id || '',
@@ -106,8 +123,29 @@ function normalizeChatResponse(raw) {
     escalated: Boolean(raw.escalated),
     latencyMs: Number(raw.latency_ms ?? 0),
     knowledgeUsed: Boolean(raw.knowledge_used),
+    degradations,
+    degraded: Boolean(raw.degraded),
     raw
   }
+}
+
+function normalizeSearchResponse(raw) {
+  return {
+    query: raw.query || '',
+    results: raw.results || [],
+    reranked: Boolean(raw.reranked),
+    degraded: Boolean(raw.degraded),
+    error: raw.error || '',
+    stages: raw.stages || {}
+  }
+}
+
+function normalizeDegradations(events) {
+  return (events || []).map(event => ({
+    source: event?.source || '',
+    code: event?.code || '',
+    message: event?.message || ''
+  }))
 }
 
 function normalizeToolTraceResponse(raw) {
@@ -125,13 +163,30 @@ function normalizeToolTraceResponse(raw) {
 }
 
 async function requestJson(path, options = {}) {
+  const { timeoutMs = TIMEOUT.read, signal, ...fetchOptions } = options
   // 合并而非覆盖：调用方已带 Content-Type，上传接口刻意不带以便浏览器生成 FormData 边界
-  const headers = new Headers(options.headers)
+  const headers = new Headers(fetchOptions.headers)
   const token = readSettings().apiToken
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`)
   }
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  let response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...fetchOptions,
+      headers,
+      signal: composeSignal(signal, timeoutMs)
+    })
+  } catch (error) {
+    // 后端挂住时 fetch 只会一直等，这里让它到点变成一句能读的提示
+    if (error?.name === 'AbortError' && signal?.aborted) {
+      throw Object.assign(new Error('请求已取消'), { cancelled: true })
+    }
+    if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
+      throw Object.assign(new Error(`后端未在 ${timeoutMs / 1000}s 内返回`), { timedOut: true })
+    }
+    throw new Error(`网络错误：${error?.message || error}`)
+  }
   const text = await response.text()
   let data = null
   try {
@@ -141,9 +196,16 @@ async function requestJson(path, options = {}) {
   }
   if (!response.ok) {
     const detail = typeof data === 'string' ? data : JSON.stringify(data)
-    throw new Error(`${response.status} ${response.statusText}: ${detail}`)
+    throw Object.assign(new Error(`${response.status} ${response.statusText}: ${detail}`), {
+      status: response.status
+    })
   }
   return data
+}
+
+function composeSignal(signal, timeoutMs) {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
 }
 
 function readSettings() {
