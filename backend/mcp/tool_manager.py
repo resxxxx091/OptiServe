@@ -339,7 +339,7 @@ async def recall_node(state: RetrievalState, config) -> Dict[str, Any]:
     manager = _manager(config)
     with trace_span("rag.recall", sub_queries=len(state["sub_queries"]), recall_k=state["recall_k"]):
         recalls = await asyncio.gather(*[
-            manager.call(state["tool_name"], {"query": q, "top_k": state["recall_k"]}, state["context"], use_cache=True)
+            manager.call(state["tool_name"], {"query": q, "top_k": state["recall_k"]}, state["context"])
             for q in state["sub_queries"]
         ], return_exceptions=True)
     return {"recalls": list(recalls)}
@@ -488,10 +488,6 @@ class MCPToolManager:
         self._tools[tool.name] = tool
         logger.info(f"注册工具: {tool.name}")
 
-    def unregister(self, name: str) -> None:
-        self._tools.pop(name, None)
-        logger.info(f"注销工具: {name}")
-
     # ── 核心调用 ──────────────────────────────────────────────────────────────
 
     async def call(
@@ -499,8 +495,6 @@ class MCPToolManager:
         name: str,
         params: Dict[str, Any],
         context: Optional[Dict[str, Any]] = None,
-        *,
-        use_cache: bool = True,
     ) -> ToolResult:
         """
         调用工具，完整执行链：
@@ -513,7 +507,7 @@ class MCPToolManager:
         tool.stats.total += 1
 
         # 缓存命中
-        if use_cache and tool.cache_ttl > 0:
+        if tool.cache_ttl > 0:
             cached = self._get_cache(name, params)
             if cached is not None:
                 tool.stats.success += 1

@@ -104,7 +104,6 @@ class AgentResponse:
     agent_type:  AgentType
     content:     str
     success:     bool
-    confidence:  float = 1.0
     latency_ms:  float = 0.0
     escalate:    bool  = False   # 是否需要升级
     tools_used:  List[str] = field(default_factory=list)

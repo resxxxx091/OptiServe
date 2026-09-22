@@ -34,7 +34,7 @@ from core.degradation import (
     Dep, DepState, collect_degraded, redact_creds, set_status, statuses,
 )
 from core.tracing import get_trace_tree, recent_trace_trees, set_finish_hook, start_trace, trace_span
-from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient, _env_float
+from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient, _env_float, _env_int
 
 load_dotenv()
 
@@ -165,7 +165,6 @@ async def lifespan(app: FastAPI):
     print(BANNER, flush=True)
 
     from agents.agent_orchestrator import AgentOrchestrator, build_shared_rag_tools
-    from agents.base import _env_float, _env_int
     from core.intent_recognizer import IntentRecognizer
     from core.vector_store import VectorStoreConfig
     from evaluation.evaluator import EndToEndEvaluator
@@ -271,8 +270,7 @@ async def lifespan(app: FastAPI):
         cache_ttl=300.0,
         fallback=knowledge_fallback,
     ))
-    if _orchestrator is not None:
-        _orchestrator.set_shared_tools(build_shared_rag_tools(_tool_manager))
+    _orchestrator.set_shared_tools(build_shared_rag_tools(_tool_manager))
 
     # 性能监控
     _monitor = PerformanceMonitor(
@@ -329,12 +327,9 @@ async def lifespan(app: FastAPI):
     if _trace_exporter is not None:
         _trace_exporter.shutdown()
     await recognizer.close()
-    if _memory is not None:
-        await _memory.close()
-    if _kb is not None:
-        await _kb.close()
-    if _rerank_client is not None:
-        await _rerank_client.aclose()
+    await _memory.close()
+    await _kb.close()
+    await _rerank_client.aclose()
     logger.info("OptiServe 已关闭")
 
 

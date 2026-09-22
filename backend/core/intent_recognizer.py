@@ -161,8 +161,6 @@ class IntentRecognizer:
 
         self._tpl_embeddings: Dict[IntentCategory, List[List[float]]] = {}
         self._cache: Dict[str, IntentResult] = {}
-        self.cache_hits   = 0
-        self.cache_misses = 0
 
     # ── 公开接口 ──────────────────────────────────────────────────────────────
 
@@ -178,9 +176,7 @@ class IntentRecognizer:
         """
         key = self._cache_key(message, history)
         if key in self._cache:
-            self.cache_hits += 1
             return self._cache[key]
-        self.cache_misses += 1
 
         state = await INTENT_GRAPH.ainvoke(
             {"message": message, "history": history, "t0": time.monotonic()},
@@ -380,13 +376,3 @@ class IntentRecognizer:
         if not isinstance(value, str):
             value = str(value)
         return value.encode("utf-8", errors="ignore").decode("utf-8")
-
-    @property
-    def cache_stats(self) -> Dict[str, Any]:
-        total = self.cache_hits + self.cache_misses
-        return {
-            "size": len(self._cache),
-            "hits": self.cache_hits,
-            "misses": self.cache_misses,
-            "hit_rate": self.cache_hits / total if total else 0.0,
-        }

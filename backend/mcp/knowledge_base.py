@@ -217,12 +217,6 @@ class KnowledgeBase:
         这里只做到召回为止。RRF 粗排、Reranker 精排、断崖截断在 MCPToolManager 的检索图里做，
         因为融合必须同时看见「改写出的多个子查询 × 两路索引」的全部排名，
         在本层合并就等于把粗排的输入削成一份。
-
-        MCPToolManager.register(Tool(
-            name="knowledge_search",
-            handler=kb.search_handler,
-            ...
-        ))
         """
         query = params.get("query", "")
         # 内部检索链路会传 max(top_k, recall_k)，这里只挡直连调用塞进来的天文数字

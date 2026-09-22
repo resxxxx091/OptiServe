@@ -119,10 +119,6 @@ class TraceRecorder:
 
     # ── 导出 ──────────────────────────────────────────────────────────────────
 
-    def spans(self) -> List[Span]:
-        """创建序，父一定在子之前——导出器按这个顺序重放即可。"""
-        return list(self._spans)
-
     def as_tree(self) -> Dict[str, Any]:
         return {
             "trace_id":   self.trace_id,
@@ -246,8 +242,3 @@ def recent_trace_trees(limit: int = 20) -> List[Dict[str, Any]]:
         return []
     limit = max(1, min(int(limit or 20), len(_trees)))
     return [_summary(tree) for tree in reversed(list(_trees)[-limit:])]
-
-
-def clear_trace_trees() -> None:
-    """清空缓冲，供测试与排查使用。"""
-    _trees.clear()

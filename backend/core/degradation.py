@@ -113,7 +113,3 @@ def set_status(source: Dep, state: DepState, detail: str = "") -> None:
 
 def statuses() -> Dict[str, Dict[str, str]]:
     return {source: dict(info) for source, info in _status.items()}
-
-
-def any_degraded() -> bool:
-    return any(info["state"] != DepState.OK.value for info in _status.values())

@@ -9,7 +9,7 @@
   3. 转人工 —— human_handoff 意图不经过任何 Agent，由 handoff() 直接产出交接文案
 
 并行协作：
-  - 有 supporting Agent 时走 run_parallel，结果由 ResponseComposer 合并后返回
+  - 有 supporting Agent 时由编排图的 parallel 节点扇出到 PARALLEL_GRAPH，结果经 ResponseComposer 合并后返回
 
 降级与升级：
   - _best_agent 按 routing_score() 选最优实例；专属 Agent 失败时降级到 GeneralAgent
@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import HumanMessage
 
-from agents.graph import ORCHESTRATION_GRAPH, PARALLEL_GRAPH
+from agents.graph import ORCHESTRATION_GRAPH
 from agents.tools import (
     AgentToolSpec,
     build_shared_rag_tools,
@@ -379,17 +379,6 @@ class AgentOrchestrator:
         )
         self._record_tool_trace(result)
         return result
-
-    async def run_parallel(self, req: Request, decision: RoutingDecision) -> OrchestratorResult:
-        """
-        并行派发给多个 Agent，合并结果。
-        适用于复杂问题（如同时涉及技术和账单）。扇出拓扑见 agents.graph.PARALLEL_GRAPH。
-        """
-        state = await PARALLEL_GRAPH.ainvoke(
-            {"req": req, "decision": decision},
-            {"configurable": {"orchestrator": self}},
-        )
-        return state["result"]
 
     async def _join_parallel(
         self, req: Request, decision: RoutingDecision, responses: List[AgentResponse], t0: float,

@@ -322,7 +322,7 @@ async def parallel(state: OrchestratorState, config: RunnableConfig) -> Dict[str
 
 
 async def prepare(state: OrchestratorState, config: RunnableConfig) -> Dict[str, Any]:
-    """并行段的计时锚点：不含意图识别与路由，与旧的 run_parallel() 起点一致。"""
+    """并行段的计时锚点：从扇出前起算，不含意图识别与路由。"""
     return {"t0": time.monotonic(), "responses": []}
 
 

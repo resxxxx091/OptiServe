@@ -183,10 +183,7 @@ async def ensure_collection(
     collection_name: str,
     schema: CollectionSchema,
     dim: int,
-    metric_type: str = DEFAULT_METRIC_TYPE,
-    consistency_level: int = DEFAULT_CONSISTENCY_LEVEL,
     sparse_fields: Sequence[str] = (),
-    sparse_metric_type: str = SPARSE_METRIC_TYPE,
 ) -> None:
     """幂等建 collection：不存在则建（含索引并自动 load），已存在则校验维度与稀疏字段。
 
@@ -211,18 +208,18 @@ async def ensure_collection(
         return
 
     index_params = client.prepare_index_params()
-    index_params.add_index(field_name=VECTOR_FIELD, index_type="AUTOINDEX", metric_type=metric_type)
+    index_params.add_index(field_name=VECTOR_FIELD, index_type="AUTOINDEX", metric_type=DEFAULT_METRIC_TYPE)
     for name in sparse_fields:
-        index_params.add_index(field_name=name, index_type="AUTOINDEX", metric_type=sparse_metric_type)
+        index_params.add_index(field_name=name, index_type="AUTOINDEX", metric_type=SPARSE_METRIC_TYPE)
     await client.create_collection(
         collection_name=collection_name,
         schema=schema,
         index_params=index_params,
-        consistency_level=consistency_level,
+        consistency_level=DEFAULT_CONSISTENCY_LEVEL,
     )
     logger.info(
         f"Milvus collection 已创建: {collection_name} "
-        f"(dim={dim}, metric={metric_type}, sparse={list(sparse_fields) or '无'})"
+        f"(dim={dim}, metric={DEFAULT_METRIC_TYPE}, sparse={list(sparse_fields) or '无'})"
     )
 
 
