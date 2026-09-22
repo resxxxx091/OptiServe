@@ -6,8 +6,10 @@
 一、工具调用的可靠性外壳（所有工具共用）：
   1. 参数校验（JSON Schema 的 required 与顶层类型）
   2. 结果缓存（TTL Cache）—— 相同参数直接返回缓存，减少重复调用
-  3. 超时控制（asyncio.wait_for，按工具配 timeout_s）
-  4. 熔断器（Circuit Breaker）—— 连续失败超阈值时自动断开，防止雪崩
+  3. 超时控制（asyncio.wait_for）—— 三层各有预算：单次 handler 执行按工具配 timeout_s，
+     问题改写那一次 LLM 调用按 RETRIEVAL_REWRITE_TIMEOUT_S，整条检索链按 RETRIEVAL_TOTAL_TIMEOUT_S
+  4. 熔断器（Circuit Breaker）—— 连续失败超阈值时自动断开，防止雪崩；
+     HALF_OPEN 窗口内只放一个探测请求，探测被总超时取消时靠租约到期自愈
   5. 降级策略（Fallback）—— 工具不可用时返回有意义的降级结果，同时打 `degraded` 标记、
      单独计 `fallback_rate`，不让兜底文案伪装成健康调用
 
@@ -32,7 +34,6 @@ import hashlib
 import inspect
 import json
 import logging
-import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -41,12 +42,16 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypedDi
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 
+from agents.base import _env_float, _env_int
 from core.degradation import Dep, degrade
 from core.llm import LLMProvider, message_text
 from core.tracing import trace_span
 from core.vector_store import AsyncRerankClient, RerankError
 
 logger = logging.getLogger(__name__)
+
+# 问题改写的子查询条数：含原始查询在内，一次检索最多扇出这么多次召回
+REWRITE_SUB_QUERIES = 3
 
 
 # ── 数据结构 ──────────────────────────────────────────────────────────────────
@@ -119,24 +124,32 @@ class CircuitBreaker:
         self.state       = CircuitState.CLOSED
         self.fail_count  = 0
         self.opened_at:  float = 0.0
+        self.probe_at:   Optional[float] = None   # 在飞的探测请求起跑时刻
 
     def allow(self) -> bool:
         if self.state == CircuitState.CLOSED:
             return True
         if self.state == CircuitState.OPEN:
-            # 如果熔断器处于打开状态，检查是否已经过了恢复时间
-            if time.monotonic() - self.opened_at >= self.recovery_s:  
-                # 进入 HALF_OPEN 状态，允许一次探测
-                self.state = CircuitState.HALF_OPEN
-                return True
+            # 还没到恢复时间就一直拒；到了才转 HALF_OPEN 并开始探测窗口
+            if time.monotonic() - self.opened_at < self.recovery_s:
+                return False
+            self.state = CircuitState.HALF_OPEN
+            self.probe_at = None
+        # HALF_OPEN：窗口内只放一个探测请求。probe_at 同时充当租约起点——
+        # 探测被外层总超时取消时不会回调 record_*，靠租约到期自愈，否则会永久卡在半开。
+        now = time.monotonic()
+        if self.probe_at is not None and now - self.probe_at < self.recovery_s:
             return False
-        return True  
+        self.probe_at = now
+        return True
 
     def record_success(self) -> None:
         self.fail_count = 0
         self.state = CircuitState.CLOSED
+        self.probe_at = None
 
     def record_failure(self) -> None:
+        self.probe_at = None
         self.fail_count += 1
         if self.fail_count >= self.threshold:
             self.state     = CircuitState.OPEN
@@ -180,20 +193,25 @@ class RetrievalConfig:
     gap_abs: float = 0.5           # 相邻分数绝对落差阈值
     gap_ratio: float = 0.25        # 相邻分数相对落差阈值（相对前一名）
     rerank_max_chars: int = 1000   # 送进精排的单篇文档截断长度
+    rewrite_timeout_s: float = 15.0   # 问题改写这一次 LLM 调用的时限
+    total_timeout_s: float = 45.0     # 整条检索链的总预算，小于「单工具超时 × 级数」的最坏值
 
     @classmethod
     def from_env(cls) -> "RetrievalConfig":
+        # 调参键容错读取：手误（RETRIEVAL_RRF_K=6o）回落默认值并 warn，不拖垮启动闸门
         return cls(
-            rrf_k=int(os.getenv("RETRIEVAL_RRF_K", "60")),
-            dense_weight=float(os.getenv("RETRIEVAL_RRF_DENSE_WEIGHT", "0.7")),
-            sparse_weight=float(os.getenv("RETRIEVAL_RRF_SPARSE_WEIGHT", "0.3")),
-            recall_k=int(os.getenv("RETRIEVAL_RECALL_K", "10")),
-            coarse_n=int(os.getenv("RETRIEVAL_COARSE_N", "20")),
-            max_topk=int(os.getenv("RERANK_MAX_TOPK", "10")),
-            min_topk=int(os.getenv("RERANK_MIN_TOPK", "1")),
-            gap_abs=float(os.getenv("RERANK_GAP_ABS", "0.5")),
-            gap_ratio=float(os.getenv("RERANK_GAP_RATIO", "0.25")),
-            rerank_max_chars=int(os.getenv("RERANK_MAX_CHARS", "1000")),
+            rrf_k=_env_int("RETRIEVAL_RRF_K", 60),
+            dense_weight=_env_float("RETRIEVAL_RRF_DENSE_WEIGHT", 0.7),
+            sparse_weight=_env_float("RETRIEVAL_RRF_SPARSE_WEIGHT", 0.3),
+            recall_k=_env_int("RETRIEVAL_RECALL_K", 10),
+            coarse_n=_env_int("RETRIEVAL_COARSE_N", 20),
+            max_topk=_env_int("RERANK_MAX_TOPK", 10),
+            min_topk=_env_int("RERANK_MIN_TOPK", 1),
+            gap_abs=_env_float("RERANK_GAP_ABS", 0.5),
+            gap_ratio=_env_float("RERANK_GAP_RATIO", 0.25),
+            rerank_max_chars=_env_int("RERANK_MAX_CHARS", 1000),
+            rewrite_timeout_s=_env_float("RETRIEVAL_REWRITE_TIMEOUT_S", 15.0),
+            total_timeout_s=_env_float("RETRIEVAL_TOTAL_TIMEOUT_S", 45.0),
         )
 
     @property
@@ -289,6 +307,10 @@ def cliff_truncate(
 
     两个阈值同时存在是因为量纲与分布随模型而异：绝对落差管"整体都低分"，
     相对落差管"前几名挤在一起、后面突然塌"。命中即停，只看第一道断崖。
+
+    满足任一即切断，所以生效边界取决于分数量纲：精排返回的是 [0,1] 概率分，
+    head<=1 时 gap_ratio*head 恒不大于 gap_abs，切断点总是先由相对阈值命中，
+    gap_abs 只在未归一化的分数量纲下才可能单独起作用。
     """
     if not items:
         return []
@@ -305,7 +327,7 @@ def cliff_truncate(
 async def rewrite_node(state: RetrievalState, config) -> Dict[str, Any]:
     manager = _manager(config)
     with trace_span("rag.rewrite", query=state["query"]):
-        sub_queries = await manager.rewrite_query(state["query"], n=3)
+        sub_queries = await manager.rewrite_query(state["query"], n=REWRITE_SUB_QUERIES)
     logger.info(f"查询改写: {state['query']!r} → {sub_queries}")
     stages = dict(state.get("stages") or {})
     stages["rewrite"] = len(sub_queries)
@@ -597,7 +619,7 @@ class MCPToolManager:
 
     # ── 检索优化链（G4）────────────────────────────────────────────────────────
 
-    async def rewrite_query(self, query: str, n: int = 3) -> List[str]:
+    async def rewrite_query(self, query: str, n: int = REWRITE_SUB_QUERIES) -> List[str]:
         """
         用 LLM 将原始查询改写为 n 个不同角度的子查询。
 
@@ -607,6 +629,9 @@ class MCPToolManager:
         示例：
           原始: "退款流程"
           改写: ["如何申请退款", "退款需要多少天", "退款政策是什么"]
+
+        返回值含原始查询、放在第一位，且总条数不超过 n：多出来的子查询会原样变成
+        recall 节点多出来的 gather 分支，每支都吃一次工具超时和一次 embedding 配额。
         """
         prompt = f"""
 将以下用户查询改写为 {n} 个不同角度的搜索子查询，用于检索知识库。
@@ -615,14 +640,19 @@ class MCPToolManager:
 返回 JSON 数组，例如: ["子查询1", "子查询2", "子查询3"]
 """
         prompt = self._clean_text(prompt)
+        timeout_s = self.retrieval.rewrite_timeout_s
         try:
             chat = self._llm.chat_model(model=self._model, temperature=0.3, max_tokens=256)
-            resp = await chat.ainvoke([HumanMessage(content=prompt)])
+            resp = await asyncio.wait_for(
+                chat.ainvoke([HumanMessage(content=prompt)]), timeout=timeout_s
+            )
             raw = message_text(resp)
             s, e = raw.find("["), raw.rfind("]") + 1
             queries = json.loads(raw[s:e])
-            # 原始查询也保留，去重
-            return list(dict.fromkeys([query] + queries))
+            return list(dict.fromkeys([query] + queries))[:max(1, n)]
+        except asyncio.TimeoutError:
+            degrade(Dep.LLM, "rewrite_timeout", f"查询改写超过 {timeout_s:g}s，使用原始查询")
+            return [query]
         except Exception as ex:
             degrade(Dep.LLM, "rewrite_failed", f"查询改写失败，使用原始查询: {ex}")
             return [query]
@@ -639,17 +669,38 @@ class MCPToolManager:
 
         返回的 data 是最终留下的文档（条数可能少于 top_k —— 断崖在哪切就在哪停），
         stages 里带各级条数，评测时可以直接看是哪一级把答案丢了。
+
+        整条链有总预算：单工具超时只管得住一次 handler 执行，五级串起来的最坏值是
+        各跳之和。超预算就判这次检索失败并打降级，而不是让上游一直等到 HTTP 层超时。
         """
-        state = await RETRIEVAL_GRAPH.ainvoke(
-            {
-                "tool_name": tool_name,
-                "query": query,
-                "top_k": top_k,
-                "recall_k": max(top_k, self.retrieval.recall_k),
-                "context": context,
-            },
-            {"configurable": {"manager": self}},
-        )
+        cfg = self.retrieval
+        try:
+            state = await asyncio.wait_for(
+                RETRIEVAL_GRAPH.ainvoke(
+                    {
+                        "tool_name": tool_name,
+                        "query": query,
+                        "top_k": top_k,
+                        "recall_k": max(top_k, cfg.recall_k),
+                        "context": context,
+                    },
+                    {"configurable": {"manager": self}},
+                ),
+                timeout=cfg.total_timeout_s,
+            )
+        except asyncio.TimeoutError:
+            degrade(
+                Dep.TOOL,
+                "retrieval_timeout",
+                f"检索链路超过总预算 {cfg.total_timeout_s:g}s，未走完五级即终止",
+            )
+            return ToolResult(
+                success=False,
+                data=[],
+                tool_name=tool_name,
+                error=f"检索超时：超过总预算 {cfg.total_timeout_s:g}s",
+                degraded=True,
+            )
         return state["result"]
 
     # ── 精排（Reranker）───────────────────────────────────────────────────────

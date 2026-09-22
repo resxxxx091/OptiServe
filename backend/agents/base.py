@@ -3,6 +3,7 @@
 本模块只放「被多个 Agent 共享的东西」：类型枚举、profile、统计、请求/响应结构，
 以及所有 Agent 的基类 BaseAgent。编排与路由不在这里，见 agents/agent_orchestrator.py。
 """
+import asyncio
 import json
 import logging
 import os
@@ -60,6 +61,11 @@ def _env_int(name: str, default: int) -> int:
     except (TypeError, ValueError):
         logger.warning("忽略非法整数配置 %s=%r", name, os.getenv(name))
         return default
+
+
+# 单个 Agent 跑完一次工具循环的总预算。轮数上限（MAX_TOOL_ROUNDS）管得住"绕太多圈"，
+# 管不住"某一圈里模型迟迟不返包"——那一跳没有自己的时限，只能靠这层封顶。
+AGENT_LOOP_TIMEOUT_S = _env_float("OPTISERVE_AGENT_LOOP_TIMEOUT_S", 90.0)
 
 
 @dataclass
@@ -194,10 +200,21 @@ class BaseAgent:
         """
         tools = self.get_tools()
         chat = self._chat if not tools else self._chat.bind_tools(openai_tool_specs(tools.values()))
-        state = await TOOL_LOOP_GRAPH.ainvoke(
-            {"req": req, "round": 0},
-            {"configurable": {"agent": self, "chat": chat, "tools": tools}},
-        )
+        try:
+            state = await asyncio.wait_for(
+                TOOL_LOOP_GRAPH.ainvoke(
+                    {"req": req, "round": 0},
+                    {"configurable": {"agent": self, "chat": chat, "tools": tools}},
+                ),
+                timeout=AGENT_LOOP_TIMEOUT_S,
+            )
+        except asyncio.TimeoutError:
+            degrade(
+                Dep.LLM,
+                "agent_loop_timeout",
+                f"{self.agent_type.value} 工具循环超过总预算 {AGENT_LOOP_TIMEOUT_S:g}s",
+            )
+            raise
         if state["exhausted"]:
             raise ToolRoundsExhausted(
                 f"{self.agent_type.value} 工具调用超过最大轮数", list(state["traces"])

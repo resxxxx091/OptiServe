@@ -2,8 +2,8 @@
   <main :class="['app-shell', `app-shell-${activeView}`]">
     <header class="topbar">
       <a class="brand" href="#" aria-label="OptiServe 首页" @click.prevent="activeView = 'chat'">
-        <span class="brand-mark">E</span>
-        <span class="brand-name">OptiServe</span>
+        <span class="brand-mark">OS</span>
+        <span class="brand-name">OptiServe<small>调试工作台</small></span>
       </a>
 
       <nav class="view-nav" aria-label="工作区">
@@ -18,7 +18,14 @@
           <i :class="healthOk ? 'online' : 'offline'"></i>
           {{ healthLabel }}
         </span>
-        <a class="docs-link" :href="docsUrl" target="_blank" rel="noreferrer">API 文档</a>
+        <span class="topbar-divider" aria-hidden="true"></span>
+        <a class="docs-link" :href="docsUrl" target="_blank" rel="noreferrer">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M6.5 3.5h-2A1.5 1.5 0 0 0 3 5v6a1.5 1.5 0 0 0 1.5 1.5h6A1.5 1.5 0 0 0 12 11V9" />
+            <path d="M9.5 2.5H13.5V6.5M13.5 2.5 8 8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          API 文档
+        </a>
         <button class="avatar-button" title="当前用户">{{ userInitial }}</button>
       </div>
     </header>
@@ -28,12 +35,12 @@
     <section v-if="activeView === 'chat'" class="page page-chat">
       <div class="page-heading">
         <div class="heading-copy">
-          <span class="kicker">Conversation lab</span>
+          <span class="kicker">POST /chat</span>
           <h1>和客服 Agent 对话</h1>
           <p>发送一条真实请求，查看它如何识别意图、选择 Agent 并生成回复。</p>
         </div>
         <div class="heading-actions">
-          <span class="session-label">{{ settings.conversationId || '新会话' }}</span>
+          <span class="session-label">conv: {{ settings.conversationId || 'new' }}</span>
           <button class="quiet-button" @click="clearConversation">清空</button>
         </div>
       </div>
@@ -51,14 +58,19 @@
           <div class="messages" ref="messageList">
             <article v-for="item in messages" :key="item.id" :class="['message', item.role]">
               <div class="message-meta">
-                <span>{{ item.role === 'user' ? '你' : 'OptiServe Agent' }}</span>
+                <span>{{ item.role === 'user' ? 'user' : 'agent' }}</span>
                 <small v-if="item.meta">{{ item.meta }}</small>
               </div>
               <p>{{ item.content }}</p>
             </article>
 
             <div v-if="messages.length === 0" class="empty-state">
-              <div class="empty-symbol">✦</div>
+              <div class="empty-symbol">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v7a1.5 1.5 0 0 1-1.5 1.5H8l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z" stroke-linejoin="round" />
+                  <path d="M6.5 7.5h7M6.5 10.5h4.5" stroke-linecap="round" />
+                </svg>
+              </div>
               <h2>从一个客户问题开始</h2>
               <p>下面的快捷问题只是起点，你也可以直接输入自己的测试用例。</p>
               <div class="starter-prompts">
@@ -78,7 +90,9 @@
               @keydown.ctrl.enter.prevent="sendMessage"
             ></textarea>
             <div class="composer-bottom">
-              <span>⌘ / Ctrl + Enter 发送</span>
+              <span class="composer-hint">
+                <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 发送
+              </span>
               <button type="submit" :disabled="busy || !draft.trim()">{{ busy ? '处理中' : '发送' }}</button>
             </div>
           </form>
@@ -88,10 +102,7 @@
           <div class="chat-sidebar-scroll">
             <section class="side-card session-card">
               <div class="card-heading">
-                <div>
-                  <span class="kicker">Session</span>
-                  <h2>会话信息</h2>
-                </div>
+                <h2>会话信息</h2>
                 <span class="status-copy muted">{{ settings.conversationId ? '已启用' : '新会话' }}</span>
               </div>
               <div class="session-grid">
@@ -108,10 +119,7 @@
 
             <section class="side-card connection-card">
               <div class="card-heading">
-                <div>
-                  <span class="kicker">Connection</span>
-                  <h2>连接配置</h2>
-                </div>
+                <h2>连接配置</h2>
                 <span class="status-copy" :class="healthOk ? 'success' : 'muted'">{{ healthLabel }}</span>
               </div>
 
@@ -128,16 +136,13 @@
                 <input v-model="settings.apiToken" @change="persist" type="password" placeholder="留空表示后端未启用鉴权" />
               </label>
               <div class="side-actions">
-                <button @click="refreshConsole">刷新</button>
+                <button class="quiet-button" @click="refreshConsole">刷新</button>
               </div>
             </section>
 
             <section class="side-card trace-card">
               <div class="card-heading">
-                <div>
-                  <span class="kicker">Last trace</span>
-                  <h2>最近一次请求</h2>
-                </div>
+                <h2>最近一次请求</h2>
                 <button v-if="lastRequestId" class="link-button" @click="openTrace(lastRequestId)">查看链路</button>
               </div>
 
@@ -174,20 +179,27 @@
 
             <section class="side-card monitor-card">
               <div class="card-heading">
-                <div>
-                  <span class="kicker">Runtime</span>
-                  <h2>运行状态</h2>
-                </div>
+                <h2>运行状态</h2>
               </div>
               <div class="mini-stats">
                 <div><strong>{{ totalRequests }}</strong><span>请求</span></div>
                 <div><strong>{{ agentCount }}</strong><span>Agent</span></div>
                 <div><strong>{{ activeAlerts.length }}</strong><span>告警</span></div>
               </div>
-              <div v-if="activeAlerts.length" class="alert-note">
-                <span class="alert-severity">{{ activeAlerts[0].severity }}</span>{{ activeAlerts[0].message }}
+              <div v-if="activeAlerts.length" class="alert-note" role="status">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <path d="M8 2.5 14.5 13.5H1.5z" stroke-linejoin="round" />
+                  <path d="M8 6.5v3M8 11.5v.5" stroke-linecap="round" />
+                </svg>
+                <span><span class="alert-severity">{{ activeAlerts[0].severity }}</span>{{ activeAlerts[0].message }}</span>
               </div>
-              <p v-else class="healthy-note">当前没有活跃告警。</p>
+              <p v-else class="healthy-note" role="status">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6" />
+                  <path d="m5.5 8 1.8 1.8L10.8 6.3" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                当前没有活跃告警。
+              </p>
             </section>
           </div>
         </aside>
@@ -197,7 +209,7 @@
     <section v-else-if="activeView === 'knowledge'" class="page page-knowledge">
       <div class="page-heading">
         <div class="heading-copy">
-          <span class="kicker">Knowledge operations</span>
+          <span class="kicker">POST /search</span>
           <h1>知识库</h1>
           <p>搜索、补充和维护客服 Agent 使用的知识片段。</p>
         </div>
@@ -207,8 +219,8 @@
       <div class="knowledge-layout">
         <section class="workspace-card search-workspace">
           <div class="card-heading">
-            <div><span class="kicker">Retrieval</span><h2>检索知识</h2></div>
-            <code>POST /search</code>
+            <h2>检索知识</h2>
+            <code>top_k 5</code>
           </div>
           <div class="search-line">
             <input v-model="searchQuery" placeholder="例如：退款多久到账" @keydown.enter="searchKnowledge" />
@@ -228,7 +240,7 @@
 
         <section class="workspace-card import-workspace">
           <div class="card-heading">
-            <div><span class="kicker">Ingestion</span><h2>添加知识</h2></div>
+            <h2>添加知识</h2>
             <code>Milvus 混合索引</code>
           </div>
           <label><span>标题</span><input v-model="docTitle" placeholder="退款补充政策" /></label>
@@ -242,7 +254,7 @@
 
       <section class="workspace-card skills-workspace">
         <div class="card-heading">
-          <div><span class="kicker">Loaded skills</span><h2>已加载能力</h2></div>
+          <h2>已加载能力 · {{ skillsData.skills.length }}</h2>
           <button class="link-button" @click="reloadSkillSet">重新加载</button>
         </div>
         <div class="skill-table">
@@ -257,12 +269,12 @@
     <section v-else-if="activeView === 'trace'" class="page page-trace">
       <div class="page-heading">
         <div class="heading-copy">
-          <span class="kicker">Observability</span>
+          <span class="kicker">GET /trace/{trace_id}</span>
           <h1>请求链路</h1>
           <p>一次请求的 span 树：编排 → Agent → 工具调用 → RAG 检索，各层谁把时间花在哪。</p>
         </div>
         <div class="heading-actions">
-          <span class="session-label">{{ selectedTraceId || '未选择' }}</span>
+          <span class="session-label">trace: {{ selectedTraceId || 'none' }}</span>
           <button class="quiet-button" @click="loadRecentTraces">刷新列表</button>
         </div>
       </div>
@@ -270,8 +282,8 @@
       <div class="trace-layout">
         <section class="workspace-card trace-list-workspace">
           <div class="card-heading">
-            <div><span class="kicker">Recent traces</span><h2>最近请求</h2></div>
-            <code>GET /trace/recent</code>
+            <h2>最近请求</h2>
+            <code>limit 20</code>
           </div>
           <div v-if="recentTraces.length" class="trace-list">
             <button
@@ -298,22 +310,32 @@
 
         <section class="workspace-card trace-tree-workspace">
           <div class="card-heading">
-            <div><span class="kicker">Span tree</span><h2>{{ selectedTraceId ? `#${selectedTraceId}` : '链路详情' }}</h2></div>
+            <h2>{{ selectedTraceId ? `#${selectedTraceId}` : '链路详情' }}</h2>
             <div v-if="selectedTrace?.tree" class="trace-tree-summary">
               <span>{{ selectedTrace.tree.span_count }} spans</span>
               <strong>{{ selectedTrace.tree.latency_ms }} ms</strong>
             </div>
           </div>
-          <SpanNode
-            v-if="selectedTrace?.found && selectedTrace.tree?.root"
-            :span="selectedTrace.tree.root"
-            :depth="0"
-            :root-latency="selectedTrace.tree.latency_ms"
-          />
-          <div v-else-if="selectedTraceId && selectedTrace && !selectedTrace.found" class="workspace-empty">
-            这条 trace 已超出环形缓冲（后端 OPTISERVE_TRACE_TREE_MAX，默认 200 条）或不存在。
+          <div class="kind-legend" aria-hidden="true">
+            <span class="l-orchestrator"><i></i>编排</span>
+            <span class="l-agent"><i></i>Agent</span>
+            <span class="l-llm"><i></i>LLM</span>
+            <span class="l-tool"><i></i>工具</span>
+            <span class="l-rag"><i></i>RAG</span>
+            <span class="l-memory"><i></i>记忆</span>
           </div>
-          <div v-else class="workspace-empty">从左侧选一条请求。</div>
+          <div class="trace-tree-scroll">
+            <SpanNode
+              v-if="selectedTrace?.found && selectedTrace.tree?.root"
+              :span="selectedTrace.tree.root"
+              :depth="0"
+              :root-latency="selectedTrace.tree.latency_ms"
+            />
+            <div v-else-if="selectedTraceId && selectedTrace && !selectedTrace.found" class="workspace-empty">
+              这条 trace 已超出环形缓冲（后端 OPTISERVE_TRACE_TREE_MAX，默认 200 条）或不存在。
+            </div>
+            <div v-else class="workspace-empty">从左侧选一条请求。</div>
+          </div>
         </section>
       </div>
     </section>
@@ -321,7 +343,7 @@
     <section v-else class="page page-evaluation">
       <div class="page-heading">
         <div class="heading-copy">
-          <span class="kicker">Evaluation lab</span>
+          <span class="kicker">POST /eval/run</span>
           <h1>评测 Agent</h1>
           <p>运行 FastAPI 内置评测，查看意图识别、对话质量和回归结果。</p>
         </div>
@@ -330,26 +352,35 @@
 
       <div v-if="evalData" class="evaluation-content">
         <div class="evaluation-summary">
-          <div class="score-hero"><span>Pass rate</span><strong>{{ formatPercent(evalData.pass_rate) }}</strong><small>{{ evalData.passed }} / {{ evalData.total }} cases passed</small></div>
+          <div class="score-hero"><span>通过率</span><strong>{{ formatPercent(evalData.pass_rate) }}</strong><small>{{ evalData.passed }} / {{ evalData.total }} 条用例通过</small></div>
           <div><span>通过</span><strong>{{ evalData.passed }}</strong></div>
           <div><span>总数</span><strong>{{ evalData.total }}</strong></div>
           <div><span>回归</span><strong :class="evalData.regressions?.length ? 'danger' : 'success'">{{ evalData.regressions?.length || 0 }}</strong></div>
         </div>
         <div class="evaluation-layout">
           <section class="workspace-card">
-            <div class="card-heading"><div><span class="kicker">Scores</span><h2>平均评分</h2></div></div>
+            <div class="card-heading"><h2>平均评分</h2><code>0 – 1</code></div>
             <div class="score-list">
               <div v-for="(value, key) in evalData.avg_scores" :key="key"><span>{{ key }}</span><i><b :style="{ width: `${Math.min(Number(value) * 100, 100)}%` }"></b></i><strong>{{ Number(value).toFixed(2) }}</strong></div>
             </div>
           </section>
           <section class="workspace-card">
-            <div class="card-heading"><div><span class="kicker">Recommendations</span><h2>优化建议</h2></div></div>
+            <div class="card-heading"><h2>优化建议</h2><code>{{ evalData.recommendations?.length || 0 }} 条</code></div>
             <div v-if="evalData.recommendations?.length" class="recommendations"><p v-for="(item, index) in evalData.recommendations" :key="index">{{ item }}</p></div>
             <div v-else class="workspace-empty">本次评测没有返回额外建议。</div>
           </section>
         </div>
       </div>
-      <div v-else class="evaluation-empty"><div class="empty-symbol">◎</div><h2>还没有评测结果</h2><p>点击右上角运行一次评测。</p></div>
+      <div v-else class="evaluation-empty">
+        <div class="empty-symbol">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="10" cy="10" r="7" />
+            <path d="M8.2 7.4 13 10l-4.8 2.6z" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <h2>还没有评测结果</h2>
+        <p>点击右上角运行一次评测。</p>
+      </div>
     </section>
   </main>
 </template>

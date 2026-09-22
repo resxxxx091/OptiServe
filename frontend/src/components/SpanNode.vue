@@ -14,7 +14,25 @@ const inputAttr = computed(() => attrs.value.input)
 const metaAttrs = computed(() =>
   Object.entries(attrs.value).filter(([key]) => key !== 'input')
 )
-const kind = computed(() => String(props.span.name || '').split(/[:.]/)[0].replace(/[^a-zA-Z0-9_-]/g, '') || 'span')
+
+// 后端 span 名前缀不统一：agent:x / rag.x / tool:x 带分隔符，llm_round_1、memory_read 是纯下划线。
+// 只按 [:.] 切分会让 llm_round_N 各成一类、配色规则失效，所以这里归一到层级组。
+const KIND_GROUPS = {
+  agent: 'agent',
+  llm: 'llm',
+  tool: 'tool',
+  rag: 'rag',
+  memory: 'memory',
+  chat: 'orchestrator',
+  search: 'orchestrator',
+  route: 'orchestrator',
+  compose: 'orchestrator',
+  intent: 'orchestrator',
+  request: 'orchestrator'
+}
+
+const rawKind = computed(() => String(props.span.name || '').split(/[:._]/)[0].toLowerCase())
+const kindGroup = computed(() => KIND_GROUPS[rawKind.value] || 'orchestrator')
 const hasDetail = computed(
   () => children.value.length > 0 || metaAttrs.value.length > 0 || inputAttr.value !== undefined || Boolean(props.span.error)
 )
@@ -33,8 +51,12 @@ function attrText(value) {
 </script>
 
 <template>
-  <details class="span-node" :class="[`span-kind-${kind}`, { leaf: !hasDetail }]" :open="depth <= 2">
+  <details class="span-node" :class="[`span-kind-${kindGroup}`, { leaf: !hasDetail }]" :open="depth <= 2">
     <summary class="span-row">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <path d="M6 3.5 10.5 8 6 12.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="span-tick" :title="rawKind" aria-hidden="true"></span>
       <span class="span-name">{{ span.name }}</span>
       <span class="span-bar"><i :style="{ width: `${barWidth}%` }"></i></span>
       <span class="span-latency">{{ span.latency_ms ?? 0 }} ms</span>
