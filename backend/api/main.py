@@ -31,7 +31,7 @@ from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field, TypeAdapter
 
 from core.degradation import (
-    Dep, DepState, collect_degraded, redact_creds, set_status, statuses,
+    Dep, DepState, collect_degraded, set_status, statuses,
 )
 from core.tracing import set_finish_hook, start_trace, trace_span
 from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient, _env_float, _env_int
@@ -94,10 +94,8 @@ async def _gate(dep: Dep, probe: Awaitable[str]) -> None:
     try:
         detail = await probe
     except Exception as ex:
-        # 只取异常首行 + 限长：响应体里可能带回密钥片段，不适合进 /health
-        msg = redact_creds(
-            f"{type(ex).__name__}: {(str(ex).splitlines() or [''])[0][:160]}"
-        )
+        # 只取异常首行 + 限长：/health 里放整段 traceback 没意义
+        msg = f"{type(ex).__name__}: {(str(ex).splitlines() or [''])[0][:160]}"
         set_status(dep, DepState.UNAVAILABLE, msg)
         raise RuntimeError(f"{dep.value} 依赖不可用，服务拒绝启动（{msg}）") from ex
     set_status(dep, DepState.OK, detail)
@@ -155,7 +153,7 @@ async def _probe_redis(redis_url: str) -> str:
         await client.ping()
     finally:
         await client.aclose()
-    return redact_creds(redis_url)
+    return redis_url
 
 
 @asynccontextmanager
@@ -238,7 +236,7 @@ async def lifespan(app: FastAPI):
             raise RuntimeError("记忆的向量层未就绪")
         if not await _kb.start():
             raise RuntimeError("知识库的向量层未就绪")
-        return f"{redact_creds(vector_cfg.milvus_uri)}，知识库 {await _kb.doc_count_async()} 个片段"
+        return f"{vector_cfg.milvus_uri}，知识库 {await _kb.doc_count_async()} 个片段"
 
     await _gate(Dep.MILVUS, probe_milvus())
 

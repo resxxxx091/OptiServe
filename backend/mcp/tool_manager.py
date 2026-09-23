@@ -19,7 +19,7 @@
   1. 问题改写：LLM 把用户原始问题扩写成多个角度的子查询，解决"一个问法只召回一个角度"。
   2. 混合索引召回：每个子查询同时打稠密向量（语义）与稀疏向量（关键词命中）两路 ANN。
   3. RRF 粗排：对「子查询 × 索引路」共 2N 份排名做 Reciprocal Rank Fusion
-     （score = Σ weight/(k+rank)），把多路共识顶上来，顺带去重。
+     （score = Σ 1/(k+rank)，各路等权），把多路共识顶上来，顺带去重。
      融合只用名次、不用分数：稠密路的 COSINE 和稀疏路的 IP 不同量纲，跨路只有排名可比。
   4. Reranker 精排：交叉编码器（外部 /v1/rerank）对粗排候选逐条 (query, doc) 打分，
      它看得到 query 与文档的交互，比向量相似度更接近"对这个问题有用"。
@@ -184,12 +184,8 @@ class RetrievalConfig:
     """RRF 融合与断崖截断的阈值；全部走环境变量，评测调参不用改代码。"""
 
     rrf_k: int = 60                # RRF 平滑常数：压住名次靠后时的边际差异
-    dense_weight: float = 0.7      # 稠密路权重，语义匹配是主力
-    sparse_weight: float = 0.3     # 稀疏路权重，错误码/型号这类精确词靠它兜住
     recall_k: int = 10             # 每个子查询在每路索引上取的候选条数（召回宽度）
     coarse_n: int = 20             # 粗排后送进精排的候选数
-    max_topk: int = 10             # 断崖截断的绝对上限，别让一次检索吐出几十篇
-    min_topk: int = 1              # 至少留一篇，哪怕第一名就跟第二名断层
     gap_abs: float = 0.5           # 相邻分数绝对落差阈值
     gap_ratio: float = 0.25        # 相邻分数相对落差阈值（相对前一名）
     rerank_max_chars: int = 1000   # 送进精排的单篇文档截断长度
@@ -201,22 +197,14 @@ class RetrievalConfig:
         # 调参键容错读取：手误（RETRIEVAL_RRF_K=6o）回落默认值并 warn，不拖垮启动闸门
         return cls(
             rrf_k=_env_int("RETRIEVAL_RRF_K", 60),
-            dense_weight=_env_float("RETRIEVAL_RRF_DENSE_WEIGHT", 0.7),
-            sparse_weight=_env_float("RETRIEVAL_RRF_SPARSE_WEIGHT", 0.3),
             recall_k=_env_int("RETRIEVAL_RECALL_K", 10),
             coarse_n=_env_int("RETRIEVAL_COARSE_N", 20),
-            max_topk=_env_int("RERANK_MAX_TOPK", 10),
-            min_topk=_env_int("RERANK_MIN_TOPK", 1),
             gap_abs=_env_float("RERANK_GAP_ABS", 0.5),
             gap_ratio=_env_float("RERANK_GAP_RATIO", 0.25),
             rerank_max_chars=_env_int("RERANK_MAX_CHARS", 1000),
             rewrite_timeout_s=_env_float("RETRIEVAL_REWRITE_TIMEOUT_S", 15.0),
             total_timeout_s=_env_float("RETRIEVAL_TOTAL_TIMEOUT_S", 45.0),
         )
-
-    @property
-    def path_weights(self) -> Dict[str, float]:
-        return {"dense": self.dense_weight, "sparse": self.sparse_weight}
 
 
 # ── G4：检索优化图 ────────────────────────────────────────────────────────────
@@ -277,19 +265,17 @@ def _rank_lists(data: Any) -> List[Tuple[str, List[Any]]]:
 def rrf_fuse(
     lists: Sequence[Tuple[str, Sequence[Any]]], cfg: RetrievalConfig
 ) -> List[Tuple[Any, float]]:
-    """加权 Reciprocal Rank Fusion：score(doc) = Σ 路权重 / (rrf_k + 该路名次)。
+    """Reciprocal Rank Fusion：score(doc) = Σ 1 / (rrf_k + 该路名次)，各路等权。
 
     只用名次不用分数，所以稠密的 COSINE 与稀疏的 IP 可以同台融合；
     同一篇文档被越多路命中、且名次越靠前，累积分越高。
     """
-    weights = cfg.path_weights
     scores: Dict[str, float] = {}
     docs: Dict[str, Any] = {}
-    for path, items in lists:
-        weight = weights.get(path, 1.0)
+    for _path, items in lists:
         for rank, item in enumerate(items, start=1):
             key = _doc_key(item)
-            scores[key] = scores.get(key, 0.0) + weight / (cfg.rrf_k + rank)
+            scores[key] = scores.get(key, 0.0) + 1.0 / (cfg.rrf_k + rank)
             docs.setdefault(key, item)
 
     # sorted 稳定 + dict 保持插入序 → 同分时按"首次出现的路的原序"，结果可复现
@@ -303,19 +289,18 @@ def cliff_truncate(
     top_k: int,
     cfg: RetrievalConfig,
 ) -> List[T]:
-    """断崖截断：在 min(top_k, max_topk) 之内，相邻两名分数落差超阈值就从那里切断。
+    """断崖截断：在 top_k 之内找第一道落差超阈值的相邻对，在那里切断。
 
     两个阈值同时存在是因为量纲与分布随模型而异：绝对落差管"整体都低分"，
     相对落差管"前几名挤在一起、后面突然塌"。命中即停，只看第一道断崖。
+    窗口内没找到断层就按名次取满 top_k，不设保底篇数。
 
     满足任一即切断，所以生效边界取决于分数量纲：精排返回的是 [0,1] 概率分，
     head<=1 时 gap_ratio*head 恒不大于 gap_abs，切断点总是先由相对阈值命中，
     gap_abs 只在未归一化的分数量纲下才可能单独起作用。
     """
-    if not items:
-        return []
-    keep = min(len(items), max(cfg.min_topk, top_k), cfg.max_topk)
-    for index in range(cfg.min_topk - 1, keep - 1):
+    keep = min(len(items), top_k)
+    for index in range(keep - 1):
         head, tail = score_of(items[index]), score_of(items[index + 1])
         gap = head - tail
         if gap >= cfg.gap_abs or gap >= cfg.gap_ratio * abs(head):
@@ -362,7 +347,7 @@ async def rrf_node(state: RetrievalState, config) -> Dict[str, Any]:
             failed += 1
             logger.warning(f"子查询召回异常: {recall}")
 
-    with trace_span("rag.rrf", paths=[name for name, _ in lists], dense_weight=cfg.dense_weight, sparse_weight=cfg.sparse_weight):
+    with trace_span("rag.rrf", paths=[name for name, _ in lists]):
         fused = rrf_fuse(lists, cfg)
     stages = dict(state.get("stages") or {})
     stages.update(recall_paths=len(lists), coarse=len(fused))
@@ -415,8 +400,6 @@ async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
         "rag.truncate",
         gap_abs=cfg.gap_abs,
         gap_ratio=cfg.gap_ratio,
-        min_topk=cfg.min_topk,
-        max_topk=cfg.max_topk,
         top_k=state["top_k"],
     ) as span:
         kept = cliff_truncate(triples, lambda triple: triple[2], state["top_k"], cfg)

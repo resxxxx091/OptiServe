@@ -81,7 +81,6 @@ class VectorStoreConfig:
     """Milvus、embedding 与 rerank 的连接配置，默认值面向本机开发，部署时由环境变量覆盖。"""
 
     milvus_uri: str = "http://localhost:19530"
-    milvus_token: str = ""
     milvus_db_name: str = "default"
     milvus_timeout_s: float = 10.0
     embedding_base_url: str = ""
@@ -99,7 +98,6 @@ class VectorStoreConfig:
     def from_env(cls) -> "VectorStoreConfig":
         return cls(
             milvus_uri=os.getenv("MILVUS_URI", "http://localhost:19530"),
-            milvus_token=os.getenv("MILVUS_TOKEN", ""),
             milvus_db_name=os.getenv("MILVUS_DB_NAME", "default"),
             milvus_timeout_s=_env_float("MILVUS_TIMEOUT_S", 10.0),
             embedding_base_url=os.getenv("EMBEDDING_BASE_URL", ""),
@@ -156,7 +154,6 @@ def create_async_client(config: VectorStoreConfig) -> AsyncMilvusClient:
     """创建 Milvus 异步客户端（构造函数不建立连接，首次调用才真正连）。"""
     return AsyncMilvusClient(
         uri=config.milvus_uri,
-        token=config.milvus_token or "",
         db_name=config.milvus_db_name or "default",
         timeout=config.milvus_timeout_s,
     )

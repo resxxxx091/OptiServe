@@ -3,20 +3,6 @@
 #
 # 启动（工作目录 = 本文件所在的 deploy/）：
 #   docker compose --env-file ../backend/.env up -d
-#   （没有 service 需要构建，不要再加 --build）
-#
-# ${REDIS_PASSWORD} 的插值只认 --env-file 指向的文件，不读容器里的 env_file，缺这个参数直接报缺变量。
-# 全项目只有 backend/.env 这一份真实密钥：本机进程靠 load_dotenv() 从 backend/ 读到它，
-# 这个栈靠上面的 --env-file 读到它，不要再复制出第二份 .env。
-#
-# 本栈对宿主机发布两个端口，供本机进程直连：
-#   redis   localhost:6379
-#   milvus  localhost:19530
-# etcd / MinIO 只在栈内被 Milvus 用，不对外发布。
-#
-# 本机 .env 里对应的连接串要指回宿主机口（不是容器名）：
-#   REDIS_URL=redis://:<REDIS_PASSWORD>@localhost:6379/0
-#   MILVUS_URI=http://localhost:19530
 
 name: optiserve
 
@@ -26,7 +12,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: optiserve-redis
-    # 密码只在这里出现一次：注入容器环境，再供 command 与健康检查读取（$$ 转义给容器内的 shell）
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD 未设置，启动请加 --env-file ../.env}
     command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
@@ -54,7 +39,6 @@ services:
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
       - etcd-data:/etcd
-    # 服务名必须是 etcd：Milvus 侧靠 DNS 解析 http://etcd:2379
     command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     restart: unless-stopped
     networks:

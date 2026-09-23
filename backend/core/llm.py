@@ -1,8 +1,4 @@
-"""全仓库唯一的 LLM 入口。
-
-对外只暴露两件事：拿一个 ChatDeepSeek（LLMProvider.chat_model）和从返回消息里取正文
-（message_text）。组件各自持有一个 LLMProvider，参数相同的调用复用同一个模型实例。
-"""
+"""唯一的 LLM 入口。"""
 from __future__ import annotations
 
 import os
@@ -15,12 +11,7 @@ DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
 
 
 class LLMProvider:
-    """按 (model, temperature, max_tokens, timeout) 缓存 ChatDeepSeek 实例。
-
-    ChatDeepSeek 本身是无状态的 Runnable，但构造时会建 openai 异步客户端，
-    所以同一组参数只建一次；temperature / max_tokens 属于调用参数而不是会话状态，
-    放进缓存键才能保证「换个 max_tokens 就是换个客户端」不会被静默复用。
-    """
+    """唯一的 LLM 提供者。"""
 
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY", "")
