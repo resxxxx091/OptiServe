@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from core.degradation import (
     Dep, DepState, collect_degraded, redact_creds, set_status, statuses,
 )
-from core.tracing import get_trace_tree, recent_trace_trees, set_finish_hook, start_trace, trace_span
+from core.tracing import set_finish_hook, start_trace, trace_span
 from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient, _env_float, _env_int
 
 load_dotenv()
@@ -128,9 +128,9 @@ async def _probe_embedding(vector_cfg: Any) -> str:
         dense, sparse = await embedder.embed_query_hybrid("ping")
     finally:
         await embedder.aclose()
-    if len(dense) != vector_cfg.embedding_dim:
+    if len(dense) != embedder.dim:
         raise RuntimeError(
-            f"embedding 维度不匹配：服务返回 {len(dense)}，EMBEDDING_DIM={vector_cfg.embedding_dim}"
+            f"embedding 维度不匹配：服务返回 {len(dense)}，代码里 EMBEDDING_DIM={embedder.dim}"
         )
     return f"{vector_cfg.embedding_model} dim={len(dense)}，稀疏向量 {len(sparse)} 项"
 
@@ -293,13 +293,13 @@ async def lifespan(app: FastAPI):
     )
 
     # 可观测性：每次请求的 span 树收尾时导出。没装 SDK / 没配密钥 → 钩子为 None，
-    # 树仍然只留在本地 /trace，启动与请求链路都不受影响。
+    # 树随请求结束一起释放，启动与请求链路都不受影响。
     from core.trace_export import create_exporter
 
     _trace_exporter = create_exporter()
     set_finish_hook(_trace_exporter.export if _trace_exporter else None)
     logger.info(
-        "Langfuse 上报已开启" if _trace_exporter else "Langfuse 未配置，span 树仅本地可查"
+        "Langfuse 上报已开启" if _trace_exporter else "Langfuse 未配置，本次运行不留任何请求链路记录"
     )
 
     logger.info("OptiServe 已就绪")
@@ -412,27 +412,6 @@ class ChatResponse(BaseModel):
     degradations: List[Dict[str, str]] = Field(default_factory=list)
 
 
-class ToolTraceResponse(BaseModel):
-    request_id: str
-    found: bool
-    trace: Dict[str, Any] = Field(default_factory=dict)
-
-
-class RecentToolTracesResponse(BaseModel):
-    items: List[Dict[str, Any]] = Field(default_factory=list)
-
-
-class TraceTreeResponse(BaseModel):
-    """一次请求的 span 树：编排 → Agent → 工具 → RAG 检索各阶段的父子耗时。"""
-    trace_id: str
-    found: bool
-    tree: Dict[str, Any] = Field(default_factory=dict)
-
-
-class RecentTracesResponse(BaseModel):
-    items: List[Dict[str, Any]] = Field(default_factory=list)
-
-
 # ── 路由 ──────────────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():
@@ -485,7 +464,7 @@ def _spawn_profile_update(user_id: str, conv_id: str) -> None:
         return
     _profile_running_users.add(user_id)
     # 全新空 Context：不继承本请求的降级事件列表和 span 树，
-    # 否则后台失败会事后追加进已返回请求的 degradations，/trace 与 /chat 对不上。
+    # 否则后台失败会事后追加进已返回请求的 degradations，降级计数与响应体对不上。
     task = asyncio.create_task(
         _run_profile_update(user_id, conv_id),
         context=contextvars.Context(),
@@ -516,7 +495,7 @@ async def chat(req: ChatRequest):
     from agents.agent_orchestrator import Request as OrcReq
     from memory.conversation_memory import MsgRole
 
-    # trace_id 就是响应里的 request_id：同一次请求在 /trace、日志和 Langfuse 里是同一个键
+    # trace_id 就是响应里的 request_id：同一次请求在日志和 Langfuse 里是同一个键
     request_id = str(uuid.uuid4())[:8]
 
     # 一次请求一条 span 树。记忆读取与意图识别在 orchestrator.run() 外面，
@@ -606,40 +585,6 @@ async def monitor_summary():
     if _monitor is None:
         raise HTTPException(503, "服务未就绪")
     return _monitor.summary()
-
-
-@app.get("/trace/tool/{request_id}", response_model=ToolTraceResponse)
-async def get_tool_trace(request_id: str):
-    """查看某次请求的工具调用明细。"""
-    if _orchestrator is None:
-        raise HTTPException(503, "服务未就绪")
-    trace = _orchestrator.get_tool_trace(request_id)
-    return ToolTraceResponse(
-        request_id=request_id,
-        found=trace is not None,
-        trace=trace or {},
-    )
-
-
-@app.get("/trace/tools", response_model=RecentToolTracesResponse)
-async def list_recent_tool_traces(limit: int = 20):
-    """查看最近 N 次请求的工具调用明细。"""
-    if _orchestrator is None:
-        raise HTTPException(503, "服务未就绪")
-    return RecentToolTracesResponse(items=_orchestrator.get_recent_tool_traces(limit=limit))
-
-
-@app.get("/trace/recent", response_model=RecentTracesResponse)
-async def list_recent_traces(limit: int = 20):
-    """最近 N 条 trace 的摘要（trace_id、片段数、总耗时、结果），新的在前。"""
-    return RecentTracesResponse(items=recent_trace_trees(limit=limit))
-
-
-@app.get("/trace/{trace_id}", response_model=TraceTreeResponse)
-async def get_trace(trace_id: str):
-    """一次请求的完整 span 树。/trace/tool/* 看工具明细，这里看谁把时间花在哪一层。"""
-    tree = get_trace_tree(trace_id)
-    return TraceTreeResponse(trace_id=trace_id, found=tree is not None, tree=tree or {})
 
 
 @app.post("/search")

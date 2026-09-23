@@ -6,14 +6,11 @@ OptiServe 智能客服系统的调试工作台，单页 Vue 3 应用，连接 `b
 
 | 视图 | 用途 | 后端接口 |
 |---|---|---|
-| 对话 | 发一条真实请求，看意图、路由、耗时、工具调用 | `POST /chat`、`GET /trace/tool/{request_id}` |
+| 对话 | 发一条真实请求，看意图、路由、耗时 | `POST /chat` |
 | 知识库 | 检索链路验证、文档导入、文件上传、Skills 查看与热加载 | `POST /search`、`POST /knowledge/add`、`POST /knowledge/upload`、`GET /knowledge/stats`、`GET /skills`、`POST /skills/reload` |
-| 链路 | 一次请求的 span 树：编排 → Agent → 工具 → RAG 各层父子耗时 | `GET /trace/recent`、`GET /trace/{trace_id}` |
 | 评测 | 运行内置评测用例，看通过率、四维均分、回归与建议 | `POST /eval/run` |
 
 顶栏常驻健康指示，来自 `GET /health`；运行状态卡在 `GET /monitor`。
-
-`/chat` 响应里的 `request_id` 就是链路视图的 `trace_id`，对话页的「查看链路」按这个键深链过去。
 
 ## 后端地址
 

@@ -34,6 +34,12 @@ SPARSE_METRIC_TYPE = "IP"
 # Strong：压缩后立刻检索、画像 upsert 后立刻读回都要求 read-your-writes；数据量很小，代价可忽略。
 DEFAULT_CONSISTENCY_LEVEL = ConsistencyLevel.Strong
 
+# 请求稀疏向量时塞进请求体的开关字段名（各家 OpenAI 兼容服务的私有扩展，如 SiliconFlow 的 return_sparse）
+SPARSE_REQUEST_PARAM = "return_sparse"
+
+# bge-m3 的稠密向量维度。换不同维度的 embedding 模型时改这里，并先删除已建好的 collection 重建。
+EMBEDDING_DIM = 1024
+
 # 一次响应里稀疏向量可能出现的键名与形状，各家 OpenAI 兼容服务的叫法不统一
 _SPARSE_KEYS = ("sparse", "sparse_embedding", "sparse_vector", "lexical_weights")
 
@@ -81,14 +87,12 @@ class VectorStoreConfig:
     embedding_base_url: str = ""
     embedding_api_key: str = ""
     embedding_model: str = "bge-m3"
-    embedding_dim: int = 1024
     embedding_timeout_s: float = 15.0
     embedding_batch: int = 32
-    # 请求稀疏向量时塞进请求体的开关字段名；置空表示服务端不需要开关（直接返回稀疏）
-    embedding_sparse_param: str = "return_sparse"
     rerank_base_url: str = ""
     rerank_api_key: str = ""
     rerank_model: str = "bge-reranker-v2-m3"
+    # 定死在代码里：这一跳不是评测调参项，只要保证小于 RETRIEVAL_TOTAL_TIMEOUT_S 即可
     rerank_timeout_s: float = 10.0
 
     @classmethod
@@ -101,15 +105,12 @@ class VectorStoreConfig:
             embedding_base_url=os.getenv("EMBEDDING_BASE_URL", ""),
             embedding_api_key=os.getenv("EMBEDDING_API_KEY", ""),
             embedding_model=os.getenv("EMBEDDING_MODEL", "bge-m3"),
-            embedding_dim=_env_int("EMBEDDING_DIM", 1024),
             embedding_timeout_s=_env_float("EMBEDDING_TIMEOUT_S", 15.0),
             embedding_batch=max(1, _env_int("EMBEDDING_BATCH", 32)),
-            embedding_sparse_param=os.getenv("EMBEDDING_SPARSE_PARAM", "return_sparse").strip(),
             rerank_base_url=os.getenv("RERANK_BASE_URL", "").strip(),
             # 多数托管平台 embedding 与 rerank 同一账号同一密钥，不单独配时跟着 embedding 走
             rerank_api_key=(os.getenv("RERANK_API_KEY") or os.getenv("EMBEDDING_API_KEY", "")).strip(),
             rerank_model=os.getenv("RERANK_MODEL", "bge-reranker-v2-m3"),
-            rerank_timeout_s=_env_float("RERANK_TIMEOUT_S", 10.0),
         )
 
 
@@ -196,7 +197,7 @@ async def ensure_collection(
         if actual is not None and actual != dim:
             raise VectorStoreError(
                 f"collection {collection_name} 的向量维度是 {actual}，"
-                f"与 EMBEDDING_DIM={dim} 不一致；换 embedding 模型后需先删除该 collection"
+                f"与代码里的 EMBEDDING_DIM={dim} 不一致；换 embedding 模型后需先删除该 collection"
             )
         missing = [name for name in sparse_fields if name not in field_names(description)]
         if missing:
@@ -271,7 +272,7 @@ class MilvusStore:
             client: Optional[AsyncMilvusClient] = None
             try:
                 client = create_async_client(self._config)
-                dim = self._config.embedding_dim
+                dim = EMBEDDING_DIM
                 for spec in self._collections:
                     await ensure_collection(
                         client,
@@ -297,7 +298,7 @@ class MilvusStore:
             self._warned = False
             logger.info(
                 f"Milvus 已连接: {self._config.milvus_uri} "
-                f"(dim={self._config.embedding_dim}, model={self._config.embedding_model}, "
+                f"(dim={EMBEDDING_DIM}, model={self._config.embedding_model}, "
                 f"collections={[spec.name for spec in self._collections]})"
             )
             return True
@@ -338,7 +339,7 @@ class AsyncEmbeddingClient:
 
     @property
     def dim(self) -> int:
-        return self._config.embedding_dim
+        return EMBEDDING_DIM
 
     @property
     def model(self) -> str:
@@ -412,8 +413,8 @@ class AsyncEmbeddingClient:
     ) -> List[Tuple[List[float], SparseVector]]:
         endpoint = self._endpoint()
         body: Dict[str, Any] = {"model": self._config.embedding_model, "input": batch}
-        if want_sparse and self._config.embedding_sparse_param:
-            body[self._config.embedding_sparse_param] = True
+        if want_sparse:
+            body[SPARSE_REQUEST_PARAM] = True
         request = {
             "headers": {
                 "Authorization": f"Bearer {self._config.embedding_api_key}",
@@ -444,14 +445,14 @@ class AsyncEmbeddingClient:
         if len(vectors) != len(batch):
             raise EmbeddingError(f"embedding 返回 {len(vectors)} 条，期望 {len(batch)} 条")
         for dense, sparse in vectors:
-            if len(dense) != self._config.embedding_dim:
+            if len(dense) != EMBEDDING_DIM:
                 raise EmbeddingError(
-                    f"embedding 维度 {len(dense)} 与 EMBEDDING_DIM={self._config.embedding_dim} 不一致"
+                    f"embedding 维度 {len(dense)} 与代码里的 EMBEDDING_DIM={EMBEDDING_DIM} 不一致"
                 )
             if want_sparse and not sparse:
                 raise EmbeddingError(
                     f"embedding 服务未返回稀疏向量（model={self._config.embedding_model}）；"
-                    f"混合索引少一路不可信，若端点的开关字段名不同请配 EMBEDDING_SPARSE_PARAM"
+                    f"混合索引少一路不可信，若端点的开关字段名不同请改 core/vector_store.py 的 SPARSE_REQUEST_PARAM"
                 )
         return vectors
 

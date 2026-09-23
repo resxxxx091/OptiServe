@@ -21,8 +21,6 @@ import json
 import logging
 import os
 import time
-from collections import deque
-from datetime import datetime
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional
 
@@ -72,7 +70,6 @@ class OrchestratorResult:
     primary_agent: Optional[AgentType] = None
     supporting_agents: List[AgentType] = field(default_factory=list)
     tools_used: List[str] = field(default_factory=list)
-    tool_traces: List[Dict[str, Any]] = field(default_factory=list)
     routing_reason: str = ""
     routing_confidence: float = 0.0
 
@@ -201,7 +198,6 @@ class AgentOrchestrator:
         self._skill_manager = skill_manager
         self._composer = ResponseComposer(llm, model)
         self._shared_tools: Dict[str, AgentToolSpec] = {}
-        self._recent_tool_traces = deque(maxlen=_env_int("OPTISERVE_TOOL_TRACE_MAX", 200))
 
         # Agent 池：每种类型可有多个实例（水平扩展）
         self._pool: Dict[AgentType, List[BaseAgent]] = {
@@ -250,32 +246,6 @@ class AgentOrchestrator:
     ):
         """对外暴露意图识别，供 API 层先判断是否需要 RAG 等前置能力。"""
         return await self._intent_recognizer.recognize(message, history=history)
-
-    def _record_tool_trace(self, result: OrchestratorResult) -> None:
-        trace = {
-            "request_id": result.request_id,
-            "timestamp": datetime.now().isoformat(),
-            "intent": result.intent.value if result.intent else None,
-            "primary_agent": result.primary_agent.value if result.primary_agent else None,
-            "supporting_agents": [agent.value for agent in result.supporting_agents],
-            "tools_used": list(result.tools_used),
-            "tool_calls": list(result.tool_traces),
-            "escalated": result.escalated,
-            "latency_ms": round(result.latency_ms, 1),
-        }
-        self._recent_tool_traces.append(trace)
-
-    def get_tool_trace(self, request_id: str) -> Optional[Dict[str, Any]]:
-        for trace in reversed(self._recent_tool_traces):
-            if trace.get("request_id") == request_id:
-                return trace
-        return None
-
-    def get_recent_tool_traces(self, limit: int = 20) -> List[Dict[str, Any]]:
-        if not self._recent_tool_traces:
-            return []
-        limit = max(1, min(int(limit or 20), len(self._recent_tool_traces)))
-        return list(reversed(list(self._recent_tool_traces)[-limit:]))
 
     def _warn_unloaded_hint(
         self,
@@ -353,11 +323,9 @@ class AgentOrchestrator:
             primary_agent=decision.primary_agent,
             supporting_agents=[],
             tools_used=list(response.tools_used),
-            tool_traces=list(response.tool_traces),
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,
         )
-        self._record_tool_trace(result)
         self._warn_unloaded_hint(req, response.agent_type, response.tools_used)
         return result
 
@@ -377,7 +345,6 @@ class AgentOrchestrator:
             routing_reason=reason,
             routing_confidence=req.intent_confidence,
         )
-        self._record_tool_trace(result)
         return result
 
     async def _join_parallel(
@@ -404,15 +371,9 @@ class AgentOrchestrator:
                 for response in responses
                 for tool_name in response.tools_used
             )),
-            tool_traces=[
-                trace
-                for response in responses
-                for trace in response.tool_traces
-            ],
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,
         )
-        self._record_tool_trace(result)
         for response in responses:
             self._warn_unloaded_hint(req, response.agent_type, response.tools_used)
         return result
@@ -473,7 +434,7 @@ class AgentOrchestrator:
         自身永不参与降权判定，否则改判没有终点。
         reason 按新决策整条重建（不是只在尾巴上追加），否则字符串里的 primary 会跟
         真正的 primary_agent 自相矛盾；改判痕迹留在 demoted_from，事件留在 route span，
-        所以闭环的证据在 /trace 与响应体里都读得出来，而不只是 /monitor 的一个数字。
+        所以闭环的证据在 route span 与响应体里都读得出来，而不只是 /monitor 的一个数字。
         """
         primary = decision.primary_agent
         penalty = self._type_penalty(primary)

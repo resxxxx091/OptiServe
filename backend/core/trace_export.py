@@ -3,11 +3,11 @@
 
 为什么单独一层：Langfuse v3 的重放只需要两个动作 —— 在父 otel span 的上下文里
 start_observation()（父子链自然成立），再用记录好的墙钟时间覆写 _start_time 与
-end(end_time=…)（各阶段耗时口径不丢）。SDK 版本漂移只会坏这一个文件，埋点方、
-/trace 端点与测试都不感知 Langfuse 的存在。
+end(end_time=…)（各阶段耗时口径不丢）。SDK 版本漂移只会坏这一个文件，埋点方与测试
+都不感知 Langfuse 的存在。
 
 三种情况都只让导出变成 no-op，绝不影响请求链路：没装 SDK、没配密钥（或仍是 .env
-模板里的 xxx 占位）、导出过程中抛异常。
+模板里的 xxx 占位）、导出过程中抛异常。no-op 时本地也不留副本，链路记录只有 Langfuse 一份。
 """
 import logging
 import os
@@ -140,7 +140,7 @@ def create_exporter() -> Optional[LangfuseExporter]:
     public = (os.getenv("LANGFUSE_PUBLIC_KEY") or "").strip().lower()
     secret = (os.getenv("LANGFUSE_SECRET_KEY") or "").strip().lower()
     if public in _PLACEHOLDERS or secret in _PLACEHOLDERS:
-        logger.info("未配置 Langfuse 密钥，span 树只留在本地 /trace")
+        logger.info("未配置 Langfuse 密钥，本次运行不导出任何链路记录")
         return None
     try:
         from langfuse import Langfuse   # 密钥齐全才 import，没装 SDK 也不影响启动

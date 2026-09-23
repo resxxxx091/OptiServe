@@ -1,5 +1,5 @@
 /* OptiServe 调试工作台 — Ops Terminal 方向
-   单一动作色（青）承担交互，彩色只用于状态与 span 层级语义 */
+   单一动作色（青）承担交互，彩色只用于状态语义 */
 
 :root {
   color-scheme: dark;
@@ -49,13 +49,9 @@
   --info: #58a6ff;
   --info-soft: rgba(88, 166, 255, 0.12);
 
-  /* ---- span 层级语义色：链路树与图例共用同一组 token ---- */
-  --kind-orchestrator: #58a6ff;
+  /* ---- 状态点缀色：路由说明、检索结果等块的左边线 ---- */
   --kind-agent: #a371f7;
-  --kind-llm: #f272c1;
-  --kind-tool: #3fbf63;
   --kind-rag: #e0a93b;
-  --kind-memory: #7e8c9e;
   --kind-default: #4a5766;
 
   /* ---- 尺度 ---- */
@@ -171,7 +167,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 /* ===================== 顶栏 ===================== */
 
 .app-shell, .app-shell-chat { height: 100vh; overflow: hidden; }
-.app-shell-knowledge, .app-shell-evaluation, .app-shell-trace {
+.app-shell-knowledge, .app-shell-evaluation {
   height: auto;
   min-height: 100vh;
   overflow: visible;
@@ -380,7 +376,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   overflow: hidden;
 }
 
-.page-knowledge, .page-trace, .page-evaluation {
+.page-knowledge, .page-evaluation {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
@@ -389,7 +385,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   min-height: calc(100vh - var(--topbar-h));
 }
 
-.app-shell-knowledge .page, .app-shell-trace .page, .app-shell-evaluation .page {
+.app-shell-knowledge .page, .app-shell-evaluation .page {
   height: auto;
   min-height: calc(100vh - var(--topbar-h));
   overflow: visible;
@@ -695,64 +691,12 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .degrade-list span { color: var(--text-soft); }
 
-/* ===================== 链路工具调用（侧栏） ===================== */
-
-.trace-call-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-}
-
-.trace-call-list { display: grid; gap: var(--sp-2); }
-
-.trace-call-item {
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--bg-soft);
-}
-
-.trace-call-meta span { color: var(--muted); font-family: var(--font-mono); font-size: 11px; line-height: 1.4; }
-.trace-call-meta strong { color: var(--text); font-family: var(--font-mono); font-size: 12px; }
-
-.trace-call-item pre {
-  margin: 8px 0 0;
-  max-height: 160px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.trace-call-title {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: var(--fw-label);
-}
-
-.trace-empty, .side-empty {
+.side-empty {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
 }
-
-.trace-empty-block {
-  display: grid;
-  gap: var(--sp-1);
-  padding: 10px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--bg-soft);
-}
-
-.trace-empty-block p { margin: 0; color: var(--text-soft); font-size: 12px; line-height: 1.6; }
-.trace-note { color: var(--muted) !important; font-family: var(--font-mono); font-size: 11px !important; }
 
 /* ===================== 空状态 ===================== */
 
@@ -885,7 +829,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .trace-card { min-height: 0; display: flex; flex-direction: column; }
 .trace-body { min-height: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
-.trace-card .trace-call-list { max-height: 300px; overflow-y: auto; padding-right: 2px; min-height: 0; }
 .link-button { min-height: 26px; padding: 0 8px; border-radius: var(--radius-sm); font-size: 11px; }
 
 /* 耗时读数：mono + 等宽数字 */
@@ -1064,7 +1007,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 /* ===================== 知识库 / 链路 / 评测 布局 ===================== */
 
-.knowledge-layout, .trace-layout, .evaluation-layout {
+.knowledge-layout, .evaluation-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(330px, 0.92fr);
   gap: var(--sp-3);
@@ -1458,280 +1401,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   font-size: 11px;
 }
 
-/* ===================== 链路列表 ===================== */
-
-.trace-list-workspace, .trace-tree-workspace {
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 两栏等高、各自滚动：链路列表和 span 树互不推挤 */
-.trace-layout { max-height: calc(100vh - var(--topbar-h) - 132px); }
-
-.trace-list {
-  margin-top: var(--sp-2);
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.trace-tree-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding-right: 6px;
-}
-
-.trace-list-item {
-  display: grid;
-  gap: 5px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--bg-soft);
-  color: var(--text-soft);
-  text-align: left;
-  cursor: pointer;
-  font-weight: var(--fw-body);
-  min-height: 0;
-}
-
-.trace-list-item:hover:not(:disabled) { border-color: var(--line-strong); background: var(--panel-2); color: var(--text-soft); }
-
-.trace-list-item.active {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-  color: var(--text);
-}
-
-.trace-list-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.trace-list-top strong { color: var(--text); font-weight: var(--fw-strong); }
-
-.trace-list-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.trace-list-item small {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.4;
-  word-break: break-all;
-}
-
-/* ===================== span 树 ===================== */
-
-.trace-tree-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.trace-tree-summary strong { color: var(--text); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
-
-/* 图例：层级语义色不能只靠颜色辨认，配文字标签 */
-/* span 树的 meta 是 API 层写进 trace 的路由/降级结论：这里回答"为什么走了这个 Agent" */
-.trace-meta {
-  flex: 0 0 auto;
-  max-height: 40%;
-  min-height: 0;
-  overflow: auto;
-  display: grid;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--line);
-}
-
-.trace-meta .degrade-list { margin: 0; }
-
-.kind-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  margin-bottom: var(--sp-3);
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--line);
-}
-
-.kind-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.kind-legend i { width: 8px; height: 8px; border-radius: 2px; background: var(--kind-default); }
-.kind-legend .l-orchestrator i { background: var(--kind-orchestrator); }
-.kind-legend .l-agent i { background: var(--kind-agent); }
-.kind-legend .l-llm i { background: var(--kind-llm); }
-.kind-legend .l-tool i { background: var(--kind-tool); }
-.kind-legend .l-rag i { background: var(--kind-rag); }
-.kind-legend .l-memory i { background: var(--kind-memory); }
-
-.span-node { border-radius: var(--radius-sm); }
-
-.span-node > .span-detail {
-  display: grid;
-  gap: var(--sp-2);
-  margin: 2px 0 6px;
-  padding-left: var(--sp-4);
-  border-left: 1px solid var(--line-strong);
-}
-
-.span-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 4px 6px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  list-style: none;
-  transition: background-color var(--dur) var(--ease);
-}
-
-.span-row::-webkit-details-marker { display: none; }
-.span-row > svg { color: var(--muted); font-size: 12px; transition: transform var(--dur) var(--ease); }
-.span-node[open] > .span-row > svg { transform: rotate(90deg); }
-.span-node.leaf > .span-row > svg { opacity: 0.25; }
-
-.span-tick {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--kind-color);
-}
-
-.span-name {
-  flex: 0 1 auto;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.5;
-  word-break: break-all;
-}
-
-.span-bar {
-  flex: 1 1 auto;
-  min-width: 40px;
-  height: 5px;
-  overflow: hidden;
-  border-radius: 99px;
-  background: var(--panel-3);
-}
-
-.span-bar i { display: block; height: 100%; border-radius: inherit; background: var(--kind-default); }
-
-.span-latency {
-  flex: 0 0 auto;
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.5;
-  font-variant-numeric: tabular-nums;
-}
-
-.span-badge {
-  flex: 0 0 auto;
-  padding: 1px 5px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--panel-2);
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.span-badge.danger {
-  border-color: rgba(242, 109, 109, 0.4);
-  background: var(--err-soft);
-  color: var(--err);
-}
-
-.span-node.leaf > .span-detail:empty { display: none; }
-.span-row:hover { background: var(--panel-2); }
-.span-row:hover .span-name { color: var(--accent); }
-
-.span-error {
-  margin: 0;
-  padding: 8px 10px;
-  border-left: 2px solid var(--err);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--err-soft);
-  color: #f8b3b3;
-  font-size: 11px;
-  line-height: 1.6;
-}
-
-.span-attrs { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.span-attr {
-  padding: 2px 7px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-soft);
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.6;
-  word-break: break-all;
-}
-
-.span-attr em { margin-right: 5px; color: var(--muted); font-style: normal; }
-
-.span-input {
-  margin: 0;
-  padding: 10px;
-  overflow: auto;
-  max-height: 240px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-/* kind 语义：按后端真实 span 名前缀归类的分组色 */
-.span-node { --kind-color: var(--kind-default); }
-.span-kind-orchestrator { --kind-color: var(--kind-orchestrator); }
-.span-kind-agent { --kind-color: var(--kind-agent); }
-.span-kind-llm { --kind-color: var(--kind-llm); }
-.span-kind-tool { --kind-color: var(--kind-tool); }
-.span-kind-rag { --kind-color: var(--kind-rag); }
-.span-kind-memory { --kind-color: var(--kind-memory); }
-
-.span-node > .span-row .span-bar i { background: var(--kind-color); }
-
 /* ===================== 响应式 ===================== */
 
 @media (max-width: 1120px) {
@@ -1739,10 +1408,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   .view-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
   .view-nav button { min-height: 36px; }
   .chat-layout { grid-template-columns: 1fr; }
-  .knowledge-layout, .trace-layout, .evaluation-layout { grid-template-columns: 1fr; }
-  .trace-layout { max-height: none; }
-  .trace-list { max-height: 420px; }
-  .page-knowledge, .page-trace, .page-evaluation { display: block; overflow: visible; }
+  .knowledge-layout, .evaluation-layout { grid-template-columns: 1fr; }
+  .page-knowledge, .page-evaluation { display: block; overflow: visible; }
   .app-shell, .app-shell-chat { height: auto; overflow: visible; }
   body { overflow: auto; }
   .chat-sidebar { height: auto; overflow: visible; display: block; --sidebar-height: auto; }
@@ -1768,7 +1435,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   .skill-item { grid-template-columns: 8px minmax(0, 1fr) auto; }
   .skill-item > span:not(.skill-dot) { grid-column: 2 / -1; grid-row: 2; }
   .skill-item small { grid-column: 3; grid-row: 1; }
-  .trace-tree-scroll { max-height: 56vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {

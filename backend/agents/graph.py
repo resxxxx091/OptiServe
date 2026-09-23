@@ -67,7 +67,6 @@ class ToolLoopState(TypedDict, total=False):
     calls: List[Dict[str, Any]]
     round: int
     tools_used: List[str]
-    traces: List[Dict[str, Any]]
     text: str
     exhausted: bool
 
@@ -86,7 +85,6 @@ async def render_prompt(state: ToolLoopState, config: RunnableConfig) -> Dict[st
         "conversation": conversation,
         "calls": [],
         "tools_used": [],
-        "traces": [],
         "text": "",
         "exhausted": False,
     }
@@ -137,14 +135,12 @@ async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, A
 
     conversation = list(state["conversation"])
     tools_used = list(state["tools_used"])
-    traces = list(state["traces"])
 
     for call in state["calls"]:
         name = call["name"]
         tool_use_id = call["id"]
         args = call["args"]
         spec = tools.get(name)
-        tool_t0 = time.monotonic()
         call_success = True
         result_success: bool | None = None
         error_text = ""
@@ -173,36 +169,22 @@ async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, A
                     add_event("tool_failed", tool=name, error=str(ex))
                     error_text = str(ex)
                     result = {"success": False, "error": error_text}
+            if not error_text and isinstance(result, dict):
+                error_text = str(result.get("error", "") or "")
             if span is not None:
                 span.attrs.update(
                     success=call_success,
                     result_success=result_success,
+                    error=error_text,
                     cached=bool(result.get("cached")) if isinstance(result, dict) else False,
                     reranked=bool(result.get("reranked")) if isinstance(result, dict) else False,
                 )
-        tool_latency_ms = (time.monotonic() - tool_t0) * 1000
-        if not error_text and isinstance(result, dict):
-            error_text = str(result.get("error", "") or "")
-        traces.append(
-            {
-                "agent_type": prefix,
-                "tool_name": name,
-                "tool_use_id": tool_use_id,
-                "input": dict(args) if isinstance(args, dict) else args,
-                "success": call_success,
-                "result_success": result_success,
-                "latency_ms": round(tool_latency_ms, 1),
-                "cached": bool(result.get("cached")) if isinstance(result, dict) else False,
-                "reranked": bool(result.get("reranked")) if isinstance(result, dict) else False,
-                "error": error_text,
-            }
-        )
         conversation.append(ToolMessage(
             content=json.dumps(result, ensure_ascii=False),
             tool_call_id=tool_use_id,
         ))
 
-    return {"conversation": conversation, "tools_used": tools_used, "traces": traces}
+    return {"conversation": conversation, "tools_used": tools_used}
 
 
 def after_tools(state: ToolLoopState) -> str:
@@ -210,7 +192,7 @@ def after_tools(state: ToolLoopState) -> str:
 
 
 async def mark_exhausted(state: ToolLoopState, config: RunnableConfig) -> Dict[str, Any]:
-    """跑满轮数：第 N 轮的工具照样执行、照样进 trace，这里只打标记，抛错留给调用方。"""
+    """跑满轮数：第 N 轮的工具照样执行、照样进 span，这里只打标记，抛错留给调用方。"""
     return {"exhausted": True}
 
 

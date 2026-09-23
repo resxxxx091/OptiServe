@@ -92,11 +92,7 @@ class AgentStats:
 
 
 class ToolRoundsExhausted(RuntimeError):
-    """G2 跑满轮数。消息与旧版裸 RuntimeError 一致，额外携带 trace 供降级路径回传。"""
-
-    def __init__(self, message: str, traces: List[Dict[str, Any]]):
-        super().__init__(message)
-        self.traces = traces
+    """G2 跑满轮数。消息与旧版裸 RuntimeError 一致。"""
 
 
 @dataclass
@@ -107,7 +103,6 @@ class AgentResponse:
     latency_ms:  float = 0.0
     escalate:    bool  = False   # 是否需要升级
     tools_used:  List[str] = field(default_factory=list)
-    tool_traces: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -164,7 +159,7 @@ class BaseAgent:
         t0 = time.monotonic()
         self.stats.total += 1
         try:
-            content, tools_used, tool_traces = await self._call_llm(req)
+            content, tools_used = await self._call_llm(req)
             ms = (time.monotonic() - t0) * 1000
             self.stats.success += 1
             self.stats.total_ms += ms
@@ -176,26 +171,23 @@ class BaseAgent:
                 latency_ms=ms,
                 escalate=escalate,
                 tools_used=list(tools_used),
-                tool_traces=list(tool_traces),
             )
         except Exception as ex:
             ms = (time.monotonic() - t0) * 1000
             self.stats.total_ms += ms
             degrade(Dep.AGENT, "agent_failed", f"{self.agent_type.value} 处理失败，返回兜底文案: {ex}")
-            traces = ex.traces if isinstance(ex, ToolRoundsExhausted) else []
             return AgentResponse(
                 agent_type=self.agent_type,
                 content="抱歉，处理您的请求时出现问题，请稍后重试。",
                 success=False,
                 latency_ms=ms,
-                tool_traces=list(traces),
             )
 
-    async def _call_llm(self, req: Request) -> Tuple[str, List[str], List[Dict[str, Any]]]:
+    async def _call_llm(self, req: Request) -> Tuple[str, List[str]]:
         """跑 G2 工具子图；agent/chat/工具表按次注入，图只在导入时编译一次。
 
-        返回 (正文, tools_used, traces)。不在实例属性上暂存：Agent 是池化共享
-        实例，并发请求交错时 A 的响应会带上 B 的工具轨迹。
+        返回 (正文, tools_used)。不在实例属性上暂存：Agent 是池化共享
+        实例，并发请求交错时 A 的响应会带上 B 的工具名。
         """
         tools = self.get_tools()
         chat = self._chat if not tools else self._chat.bind_tools(openai_tool_specs(tools.values()))
@@ -215,10 +207,8 @@ class BaseAgent:
             )
             raise
         if state["exhausted"]:
-            raise ToolRoundsExhausted(
-                f"{self.agent_type.value} 工具调用超过最大轮数", list(state["traces"])
-            )
-        return state["text"], list(state["tools_used"]), list(state["traces"])
+            raise ToolRoundsExhausted(f"{self.agent_type.value} 工具调用超过最大轮数")
+        return state["text"], list(state["tools_used"])
 
     def _context_turns(self, req: Request) -> List[str]:
         """请求前置的合成 user turn：背景 / 结构化实体 / 角色契约。对话历史不进 Agent。"""

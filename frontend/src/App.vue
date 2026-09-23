@@ -9,7 +9,6 @@
       <nav class="view-nav" aria-label="工作区">
         <button :class="{ active: activeView === 'chat' }" @click="activeView = 'chat'">对话</button>
         <button :class="{ active: activeView === 'knowledge' }" @click="activeView = 'knowledge'">知识库</button>
-        <button :class="{ active: activeView === 'trace' }" @click="openTraceView">链路</button>
         <button :class="{ active: activeView === 'evaluation' }" @click="activeView = 'evaluation'">评测</button>
       </nav>
 
@@ -157,7 +156,6 @@
             <section class="side-card trace-card">
               <div class="card-heading">
                 <h2>最近一次请求</h2>
-                <button v-if="lastRequestId" class="link-button" @click="openTrace(lastRequestId)">查看链路</button>
               </div>
 
               <div v-if="lastResponse" class="trace-body">
@@ -180,20 +178,6 @@
                     <span>{{ event.message }}</span>
                   </li>
                 </ul>
-                <div v-if="lastTrace?.trace" class="trace-call-list">
-                  <div class="trace-call-title">工具调用</div>
-                  <div v-for="(call, index) in lastTrace.trace.toolCalls" :key="`${call.tool_use_id || index}`" class="trace-call-item">
-                    <div class="trace-call-meta">
-                      <strong>{{ call.tool_name || 'unknown_tool' }}</strong>
-                      <span>{{ call.latency_ms || 0 }} ms</span>
-                    </div>
-                    <pre>{{ formatJson(call.input || {}) }}</pre>
-                  </div>
-                  <div v-if="!lastTrace.trace.toolCalls?.length" class="trace-empty-block">
-                    <p>这次 trace 没有记录到工具输入。</p>
-                    <p v-if="lastTrace.trace.toolsUsed?.length" class="trace-note">已调用：{{ lastTrace.trace.toolsUsed.join(' · ') }}</p>
-                  </div>
-                </div>
               </div>
               <p v-else class="side-empty">发送消息后，这里会显示 Agent 路由、意图和耗时。</p>
             </section>
@@ -318,103 +302,6 @@
       </section>
     </section>
 
-    <section v-else-if="activeView === 'trace'" class="page page-trace">
-      <div class="page-heading">
-        <div class="heading-copy">
-          <span class="kicker">GET /trace/{trace_id}</span>
-          <h1>请求链路</h1>
-          <p>一次请求的 span 树：编排 → Agent → 工具调用 → RAG 检索，各层谁把时间花在哪。</p>
-        </div>
-        <div class="heading-actions">
-          <span class="session-label">trace: {{ selectedTraceId || 'none' }}</span>
-          <button class="quiet-button" @click="loadRecentTraces">刷新列表</button>
-        </div>
-      </div>
-
-      <div class="trace-layout">
-        <section class="workspace-card trace-list-workspace">
-          <div class="card-heading">
-            <h2>最近请求</h2>
-            <code>limit 20</code>
-          </div>
-          <div v-if="recentTraces.length" class="trace-list">
-            <button
-              v-for="item in recentTraces"
-              :key="item.trace_id"
-              class="trace-list-item"
-              :class="{ active: item.trace_id === selectedTraceId }"
-              @click="openTrace(item.trace_id)"
-            >
-              <div class="trace-list-top">
-                <strong>#{{ item.trace_id }}</strong>
-                <span>{{ item.latency_ms }} ms</span>
-              </div>
-              <div class="trace-list-meta">
-                <span>{{ item.span_count }} spans</span>
-                <span>{{ item.meta?.primary_agent || item.meta?.agent_type || '-' }}</span>
-                <span :class="item.status === 'error' ? 'danger' : 'muted'">{{ item.status }}</span>
-              </div>
-              <small>{{ item.start_time }}</small>
-            </button>
-          </div>
-          <div v-else class="workspace-empty">还没有 trace。发一条对话或在知识库搜一次就有了。</div>
-        </section>
-
-        <section class="workspace-card trace-tree-workspace">
-          <div class="card-heading">
-            <h2>{{ selectedTraceId ? `#${selectedTraceId}` : '链路详情' }}</h2>
-            <div v-if="selectedTrace?.tree" class="trace-tree-summary">
-              <span>{{ selectedTrace.tree.span_count }} spans</span>
-              <strong>{{ selectedTrace.tree.latency_ms }} ms</strong>
-            </div>
-          </div>
-          <div v-if="traceMeta" class="trace-meta">
-            <dl class="detail-list">
-              <div>
-                <dt>主 Agent</dt>
-                <dd>{{ traceMeta.primaryAgent || traceMeta.agentType || '-' }}</dd>
-              </div>
-              <div>
-                <dt>工具</dt>
-                <dd>{{ traceMeta.toolsUsed.join(' · ') || '-' }}</dd>
-              </div>
-              <div v-if="traceMeta.degradations.length">
-                <dt>降级</dt>
-                <dd class="warn">{{ traceMeta.degradations.length }} 项</dd>
-              </div>
-            </dl>
-            <p v-if="traceMeta.routingReason" class="routing-reason">{{ traceMeta.routingReason }}</p>
-            <ul v-if="traceMeta.degradations.length" class="degrade-list">
-              <li v-for="(event, index) in traceMeta.degradations" :key="`${event.source}-${event.code}-${index}`">
-                <code>{{ event.source }}/{{ event.code }}</code>
-                <span>{{ event.message }}</span>
-              </li>
-            </ul>
-          </div>
-          <div class="kind-legend" aria-hidden="true">
-            <span class="l-orchestrator"><i></i>编排</span>
-            <span class="l-agent"><i></i>Agent</span>
-            <span class="l-llm"><i></i>LLM</span>
-            <span class="l-tool"><i></i>工具</span>
-            <span class="l-rag"><i></i>RAG</span>
-            <span class="l-memory"><i></i>记忆</span>
-          </div>
-          <div class="trace-tree-scroll">
-            <SpanNode
-              v-if="selectedTrace?.found && selectedTrace.tree?.root"
-              :span="selectedTrace.tree.root"
-              :depth="0"
-              :root-latency="selectedTrace.tree.latency_ms"
-            />
-            <div v-else-if="selectedTraceId && selectedTrace && !selectedTrace.found" class="workspace-empty">
-              这条 trace 已超出环形缓冲（后端 OPTISERVE_TRACE_TREE_MAX，默认 200 条）或不存在。
-            </div>
-            <div v-else class="workspace-empty">从左侧选一条请求。</div>
-          </div>
-        </section>
-      </div>
-    </section>
-
     <section v-else class="page page-evaluation">
       <div class="page-heading">
         <div class="heading-copy">
@@ -498,7 +385,6 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import SpanNode from './components/SpanNode.vue'
 import {
   API_BASE,
   addKnowledge,
@@ -508,10 +394,7 @@ import {
   requestHealth,
   requestKnowledgeStats,
   requestMonitor,
-  requestRecentTraces,
   requestSearch,
-  requestToolTrace,
-  requestTraceTree,
   requestSkills,
   runEvaluation as requestEvaluation,
   saveSettings,
@@ -540,11 +423,6 @@ const sidebarRef = ref(null)
 const monitorData = ref({ agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] })
 const skillsData = ref({ count: 0, skills: [], errors: [] })
 const lastResponse = ref(null)
-const lastTrace = ref(null)
-const lastRequestId = ref('')
-const recentTraces = ref([])
-const selectedTraceId = ref('')
-const selectedTrace = ref(null)
 const evalData = ref(null)
 const onlyFailed = ref(false)
 const toast = ref('')
@@ -628,20 +506,6 @@ const stageChips = computed(() => {
   return chips
 })
 
-// span 树的 meta 由 API 层写入，只有 /chat 那一路有；/search 的 trace 这里就是空的
-const traceMeta = computed(() => {
-  const meta = selectedTrace.value?.tree?.meta
-  if (!meta || !Object.keys(meta).length) return null
-  return {
-    agentType: meta.agent_type || '',
-    primaryAgent: meta.primary_agent || '',
-    routingReason: meta.routing_reason || '',
-    toolsUsed: meta.tools_used || [],
-    escalated: Boolean(meta.escalated),
-    degradations: meta.degradations || []
-  }
-})
-
 onMounted(() => {
   refreshConsole()
   updateSidebarHeight()
@@ -682,8 +546,7 @@ async function refreshConsole() {
     checkHealth(signal),
     loadStats(signal),
     loadMonitor(signal),
-    loadSkills(signal),
-    loadRecentTraces(signal)
+    loadSkills(signal)
   ])
 }
 
@@ -752,8 +615,6 @@ async function sendMessage() {
       persist()
     }
     lastResponse.value = response
-    lastRequestId.value = response.requestId
-    lastTrace.value = await loadToolTrace(response.requestId)
     const meta = [response.intent, response.primaryAgent || response.agentType, response.knowledgeUsed ? 'RAG' : '', response.escalated ? '转人工' : ''].filter(Boolean).join(' · ')
     messages.value.push({
       id: createMessageId(),
@@ -763,7 +624,7 @@ async function sendMessage() {
       degraded: response.degraded,
       degradations: response.degradations
     })
-    await Promise.allSettled([loadMonitor(), loadRecentTraces()])
+    await loadMonitor()
   } catch (error) {
     messages.value.push({
       id: createMessageId(),
@@ -791,42 +652,8 @@ function usePrompt(prompt) { draft.value = prompt }
 function clearConversation() {
   messages.value = []
   lastResponse.value = null
-  lastTrace.value = null
-  lastRequestId.value = ''
   settings.conversationId = ''
   persist()
-}
-
-function openTraceView() {
-  activeView.value = 'trace'
-  if (!selectedTraceId.value) {
-    selectedTraceId.value = lastRequestId.value
-    if (selectedTraceId.value) openTrace(selectedTraceId.value)
-  }
-}
-
-async function openTrace(traceId) {
-  activeView.value = 'trace'
-  selectedTraceId.value = traceId
-  selectedTrace.value = null
-  try {
-    selectedTrace.value = await requestTraceTree(traceId)
-  } catch (error) {
-    showToast(`链路读取失败：${error.message}`)
-  }
-}
-
-async function loadRecentTraces(signal) {
-  try {
-    const data = await requestRecentTraces(20, signal)
-    recentTraces.value = data.items || []
-    if (!selectedTraceId.value && recentTraces.value.length) {
-      selectedTraceId.value = recentTraces.value[0].trace_id
-      selectedTrace.value = await requestTraceTree(selectedTraceId.value)
-    }
-  } catch (error) {
-    if (!error.cancelled) recentTraces.value = []
-  }
 }
 
 async function searchKnowledge() {
@@ -843,7 +670,6 @@ async function searchKnowledge() {
     } else {
       showToast(`检索完成，返回 ${data.results.length} 条结果${data.degraded ? '（已降级）' : ''}`)
     }
-    loadRecentTraces()
   } catch (error) {
     searchResults.value = []
     searchStages.value = {}
@@ -900,25 +726,9 @@ function caseFooter(item) {
   ].filter(Boolean).join(' · ')
 }
 
-async function loadToolTrace(requestId) {
-  try {
-    return await requestToolTrace(requestId)
-  } catch {
-    return null
-  }
-}
-
 function formatPercent(value) {
   const number = Number(value || 0)
   return `${(number <= 1 ? number * 100 : number).toFixed(1)}%`
-}
-
-function formatJson(value) {
-  try {
-    return JSON.stringify(value ?? {}, null, 2)
-  } catch {
-    return String(value ?? '')
-  }
 }
 
 function createMessageId() {

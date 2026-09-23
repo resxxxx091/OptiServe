@@ -7,25 +7,14 @@
 记在 _active 这个上下文变量上，因此并发分支各自挂在自己的链上，不会互相插错父节点。
 """
 import logging
-import os
 import time
-from collections import deque
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Deque, Dict, Iterator, List, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 logger = logging.getLogger(__name__)
-
-
-def _env_int(name: str, default: int) -> int:
-    """读取可选整数配置；错误配置不应阻塞服务启动。"""
-    try:
-        return int(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        logger.warning(f"忽略非法整数配置 {name}={os.getenv(name)!r}")
-        return default
 
 
 @dataclass
@@ -192,10 +181,8 @@ def add_event(name: str, **attrs: Any) -> None:
         recorder.event(name, **attrs)
 
 
-# ── 环形缓冲与导出钩子 ────────────────────────────────────────────────────────
+# ── 导出钩子 ──────────────────────────────────────────────────────────────────
 
-_MAX_TREES = _env_int("OPTISERVE_TRACE_TREE_MAX", 200)
-_trees:      Deque[Dict[str, Any]] = deque(maxlen=_MAX_TREES)
 _finish_hook: Optional[Callable[[Dict[str, Any]], None]] = None
 
 
@@ -205,40 +192,14 @@ def set_finish_hook(hook: Optional[Callable[[Dict[str, Any]], None]]) -> None:
     _finish_hook = hook
 
 
-def publish(recorder: TraceRecorder) -> Dict[str, Any]:
-    """把一次 trace 存进环形缓冲，并交给导出钩子。导出异常绝不影响请求链路。"""
-    tree = recorder.as_tree()
-    _trees.append(tree)
-    if _finish_hook is not None:
-        try:
-            _finish_hook(tree)
-        except Exception as ex:
-            logger.warning(f"trace 导出失败 trace_id={recorder.trace_id}: {ex}")
-    return tree
+def publish(recorder: TraceRecorder) -> None:
+    """把一次已完成的 span 树交给导出钩子。导出异常绝不影响请求链路。
 
-
-def get_trace_tree(trace_id: str) -> Optional[Dict[str, Any]]:
-    for tree in reversed(_trees):
-        if tree.get("trace_id") == trace_id:
-            return tree
-    return None
-
-
-def _summary(tree: Dict[str, Any]) -> Dict[str, Any]:
-    root = tree.get("root") or {}
-    return {
-        "trace_id":   tree.get("trace_id"),
-        "span_count": tree.get("span_count", 0),
-        "latency_ms": tree.get("latency_ms", 0.0),
-        "status":     tree.get("status", "ok"),
-        "start_time": root.get("start_time", ""),
-        "meta":       tree.get("meta") or {},
-    }
-
-
-def recent_trace_trees(limit: int = 20) -> List[Dict[str, Any]]:
-    """最近 N 条 trace 的摘要，新的在前；上限夹到缓冲长度。"""
-    if not _trees:
-        return []
-    limit = max(1, min(int(limit or 20), len(_trees)))
-    return [_summary(tree) for tree in reversed(list(_trees)[-limit:])]
+    没有钩子时连 as_tree() 都不做：span 树随 recorder 一起释放。
+    """
+    if _finish_hook is None:
+        return
+    try:
+        _finish_hook(recorder.as_tree())
+    except Exception as ex:
+        logger.warning(f"trace 导出失败 trace_id={recorder.trace_id}: {ex}")

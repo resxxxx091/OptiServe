@@ -75,19 +75,6 @@ export function requestChat(settings, message, signal) {
   }).then(normalizeChatResponse)
 }
 
-export function requestToolTrace(requestId, signal) {
-  if (!requestId) return Promise.resolve(null)
-  return requestJson(`/trace/tool/${encodeURIComponent(requestId)}`, { signal }).then(normalizeToolTraceResponse)
-}
-
-export function requestRecentTraces(limit = 20, signal) {
-  return requestJson(`/trace/recent?limit=${limit}`, { signal })
-}
-
-export function requestTraceTree(traceId, signal) {
-  return requestJson(`/trace/${encodeURIComponent(traceId)}`, { signal })
-}
-
 export function addKnowledge(documents) {
   return requestJson('/knowledge/add', {
     method: 'POST',
@@ -179,20 +166,6 @@ function normalizeDegradations(events) {
     code: event?.code || '',
     message: event?.message || ''
   }))
-}
-
-function normalizeToolTraceResponse(raw) {
-  const trace = raw?.trace || {}
-  return {
-    requestId: raw?.request_id || '',
-    found: Boolean(raw?.found),
-    trace: {
-      ...trace,
-      toolsUsed: trace.tools_used || [],
-      toolCalls: trace.tool_calls || []
-    },
-    raw
-  }
 }
 
 async function requestJson(path, options = {}) {

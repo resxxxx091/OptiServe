@@ -70,11 +70,10 @@ curl http://localhost:8000/skills
 ```bash
 # 1) 索引条目与正文字数
 curl -s http://localhost:8000/skills | jq '.skills[] | {name, description, content_chars}'
-# 2) 发一次命中该 Skill 的对话，取 request_id
+# 2) 发一次命中该 Skill 的对话：响应体的 tools_used 里应出现 load_skill
 curl -s -X POST http://localhost:8000/chat -H 'Content-Type: application/json' \
   -d '{"message":"我要退款，什么时候到账","user_id":"u1"}' | jq '{request_id, tools_used}'
-# 3) 用上一步的 request_id 看工具轨迹，tools_used 里应出现 load_skill
-curl -s http://localhost:8000/trace/tool/<request_id> | jq '.trace | {tools_used, inputs: [.tool_calls[].input]}'
+# 3) 想看这一跳的完整 span 树：拿 request_id 去 Langfuse 搜，本地不留链路记录
 ```
 
 启动日志里出现 `未加载任何 Skill` 的 WARNING，通常意味着 `OPTISERVE_SKILLS_DIR` 指向了空目录或挂载路径不对。
