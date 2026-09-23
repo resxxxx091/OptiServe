@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from core.degradation import (
     Dep, DepState, collect_degraded, set_status, statuses,
 )
-from core.tracing import set_finish_hook, start_trace, trace_span
+from core.tracing import init_tracing, shutdown_tracing, start_trace, trace_span
 from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient, _env_float, _env_int
 
 load_dotenv()
@@ -67,7 +67,7 @@ _evaluator    = None
 _skill_manager = None
 _kb           = None
 _rerank_client = None
-_trace_exporter = None
+
 
 def _llm_cfg() -> Dict[str, Any]:
     key = os.getenv("DEEPSEEK_API_KEY")
@@ -158,7 +158,7 @@ async def _probe_redis(redis_url: str) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _orchestrator, _memory, _tool_manager, _monitor, _evaluator, _skill_manager, _kb, _rerank_client, _trace_exporter
+    global _orchestrator, _memory, _tool_manager, _monitor, _evaluator, _skill_manager, _kb, _rerank_client
 
     print(BANNER, flush=True)
 
@@ -290,14 +290,11 @@ async def lifespan(app: FastAPI):
         baseline_path=os.getenv("EVAL_BASELINE_PATH", "/app/data/eval/baseline.json"),
     )
 
-    # 可观测性：每次请求的 span 树收尾时导出。没装 SDK / 没配密钥 → 钩子为 None，
-    # 树随请求结束一起释放，启动与请求链路都不受影响。
-    from core.trace_export import create_exporter
-
-    _trace_exporter = create_exporter()
-    set_finish_hook(_trace_exporter.export if _trace_exporter else None)
+    # 可观测性：节点结束即入队，SDK 后台批量发 Langfuse。没装 SDK / 没配密钥 → 客户端为 None，
+    # 埋点全部空转，启动与请求链路都不受影响。
+    _trace_client = init_tracing()
     logger.info(
-        "Langfuse 上报已开启" if _trace_exporter else "Langfuse 未配置，本次运行不留任何请求链路记录"
+        "Langfuse 上报已开启" if _trace_client else "Langfuse 未配置，本次运行不留任何请求链路记录"
     )
 
     logger.info("OptiServe 已就绪")
@@ -322,8 +319,7 @@ async def lifespan(app: FastAPI):
             logger.info(f"后台画像更新收尾超时，已取消 {len(pending)} 个")
 
     await _monitor.stop()
-    if _trace_exporter is not None:
-        _trace_exporter.shutdown()
+    shutdown_tracing()
     await recognizer.close()
     await _memory.close()
     await _kb.close()

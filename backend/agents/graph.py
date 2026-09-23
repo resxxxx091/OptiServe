@@ -267,7 +267,6 @@ async def route(state: OrchestratorState, config: RunnableConfig) -> Dict[str, A
     orc = _orchestrator(config)
     with trace_span("route") as span:
         decision = orc._apply_demotion(state["req"], orc._route_decision(state["req"]))
-    if span is not None:
         span.attrs.update(
             primary=decision.primary_agent.value,
             supporting=[agent.value for agent in decision.supporting_agents],

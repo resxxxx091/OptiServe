@@ -403,7 +403,6 @@ async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
         top_k=state["top_k"],
     ) as span:
         kept = cliff_truncate(triples, lambda triple: triple[2], state["top_k"], cfg)
-    if span is not None:
         span.attrs.update(returned=len(kept))
 
     stages = dict(state.get("stages") or {})

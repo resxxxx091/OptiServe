@@ -2,8 +2,7 @@
 外部依赖降级的统一记录。
 
 配置类失败（缺 key、维度不符、服务不通）在启动探测里就抛错终止，不留到运行期；
-运行期剩下的只有瞬时故障（网络抖动、单次调用失败），按请求记进 degraded 列表，
-随响应一起返回，避免只留一行 warning、响应里完全看不出降级。
+运行期失败（网络抖动、单次调用失败），按请求记进 degraded 列表，随响应一起返回，避免只留一行 warning、响应里完全看不出降级。
 """
 import logging
 from contextlib import contextmanager
@@ -27,11 +26,13 @@ class Dep(str, Enum):
     MEMORY    = "memory"    # 记忆层自身降级（检索/存取/画像），原因跨多个依赖，具体看事件 message
 
 
+# 服务状态枚举（能不能 ping 通），供 /health 读。
 class DepState(str, Enum):
     OK          = "ok"
     UNAVAILABLE = "unavailable"
 
 
+# 每次请求内的降级事件，按 source/code 唯一。message 里的是具体的异常信息。
 @dataclass(frozen=True)
 class DegradeEvent:
     source:  str
@@ -42,18 +43,13 @@ class DegradeEvent:
         return {"source": self.source, "code": self.code, "message": self.message}
 
 
+# 每次请求的降级事件列表：深处调 degrade() 直接 append，免得把降级原因逐层 return 上去
 _events: ContextVar[Optional[List[DegradeEvent]]] = ContextVar("optiserve_degraded", default=None)
 
 
-def degrade(source: Dep, code: str, message: str, *, log: bool = True) -> None:
-    """
-    记一条降级事件。同一请求内 (source, code) 只留一条，避免重复。
-
-    log=False 用于配置类缺席——那种情况启动探测时已经报过一次，
-    再每请求刷日志就是噪音。
-    """
-    if log:
-        logger.warning(f"降级 [{source.value}/{code}] {message}")
+def degrade(source: Dep, code: str, message: str) -> None:
+    """记一条降级事件。同一请求内 (source, code) 只留一条，避免重复。"""
+    logger.warning(f"降级 [{source.value}/{code}] {message}")
     events = _events.get()
     if events is None:
         return

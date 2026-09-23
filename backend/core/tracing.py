@@ -1,205 +1,227 @@
 """
-一次请求的 span 树：编排 → Agent → 工具调用 → RAG 检索各阶段的父子耗时。
-
-与 core/degradation.py 用同一套 ContextVar 机制：API 层 start_trace() 包住整次
-请求，图内节点直接 current_trace()/trace_span() 取用——asyncio 任务创建时复制
-上下文，所以 LangGraph 的节点与 Send 扇出分支都能看到同一个 recorder。父子关系
-记在 _active 这个上下文变量上，因此并发分支各自挂在自己的链上，不会互相插错父节点。
+一次请求的链路：节点开始即建 Langfuse observation、结束即 .end() 入队，SDK 后台批量上报。
+与 core/degradation.py 同一套 ContextVar 机制；不自己搭 span 树，父子链交给 OTel context。
 """
 import logging
-import time
+import os
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Dict, Iterator, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class Span:
-    """一次有始有终的执行片段。children 只在内存里挂链，导出时由 as_dict 展开。"""
-    span_id:    str
-    trace_id:   str
-    name:       str
-    parent_id:  Optional[str]     = None
-    start_time: str               = ""
-    end_time:   str               = ""
-    latency_ms: float             = 0.0
-    status:     str               = "ok"      # ok / error
-    error:      str               = ""
-    attrs:      Dict[str, Any]    = field(default_factory=dict)
-    events:     List[Dict[str, Any]] = field(default_factory=list)
-    children:   List["Span"]      = field(default_factory=list)
-    start_ts:   float             = 0.0       # monotonic 锚点，不进导出结构
-
-    def as_dict(self) -> Dict[str, Any]:
-        return {
-            "span_id":    self.span_id,
-            "trace_id":   self.trace_id,
-            "name":       self.name,
-            "parent_id":  self.parent_id,
-            "start_time": self.start_time,
-            "end_time":   self.end_time,
-            "latency_ms": self.latency_ms,
-            "status":     self.status,
-            "error":      self.error,
-            "attrs":      dict(self.attrs),
-            "events":     list(self.events),
-            "children":   [child.as_dict() for child in self.children],
-        }
+_lf: Any = None    # init_tracing() 装好；None 表示本次运行什么都不上报
 
 
-class TraceRecorder:
-    """一次请求的 span 收集器。span() 开子片段，event() 往当前片段挂事件。"""
+# 我们的 span 名前缀 → Langfuse 的 observation 类型，让 UI 按语义分组。
+# 取值必须是 langfuse._client.constants 里 ObservationTypeSpanLike / GenerationLike 的成员。
+_AS_TYPE = (
+    ("tool:", "tool"),
+    ("agent:", "agent"),
+    ("rag.", "retriever"),
+)
 
-    def __init__(self, trace_id: str, root_name: str = "request"):
-        self.trace_id = trace_id
-        self.meta:    Dict[str, Any] = {}
-        self._seq   = 0
-        self._spans: List[Span] = []
-        self.root   = self._new(root_name, None)
 
-    # ── 构建 ──────────────────────────────────────────────────────────────────
+def _as_type(name: str) -> str:
+    for prefix, kind in _AS_TYPE:
+        if name.startswith(prefix):
+            return kind
+    return "span"
 
-    def _new(self, name: str, parent: Optional[Span], **attrs: Any) -> Span:
-        self._seq += 1
-        span = Span(
-            span_id=f"{self.trace_id}-{self._seq}",
-            trace_id=self.trace_id,
-            name=name,
-            parent_id=parent.span_id if parent else None,
-            start_time=datetime.now().isoformat(),
-            start_ts=time.monotonic(),
-            attrs=dict(attrs),
-        )
-        self._spans.append(span)
-        if parent is not None:
-            parent.children.append(span)
-        return span
 
-    def _close(self, span: Span) -> None:
-        span.latency_ms = round((time.monotonic() - span.start_ts) * 1000, 1)
-        span.end_time = datetime.now().isoformat()
+# ── 生命周期 ──────────────────────────────────────────────────────────────────
 
-    @contextmanager
-    def span(self, name: str, **attrs: Any) -> Iterator[Span]:
-        parent = _active.get() or self.root
-        span = self._new(name, parent, **attrs)
-        token = _active.set(span)
+def init_tracing() -> Any:
+    """配了真密钥才建客户端；任何一步不成都返回 None，服务照常跑。"""
+    global _lf
+    public = (os.getenv("LANGFUSE_PUBLIC_KEY") or "").strip()
+    secret = (os.getenv("LANGFUSE_SECRET_KEY") or "").strip()
+    if not public or not secret:
+        logger.info("未配置 Langfuse 密钥，本次运行不导出任何链路记录")
+        return None
+    try:
+        from langfuse import Langfuse   # 密钥齐全才 import，没装 SDK 也不影响启动
+
+        # 不传参：host / 密钥 / 采样率由 SDK 自己按 LANGFUSE_* 环境变量解析
+        _lf = Langfuse()
+    except Exception as ex:
+        logger.warning(f"Langfuse 客户端初始化失败，本次启动不上报: {ex}")
+        return None
+    return _lf
+
+
+def shutdown_tracing() -> None:
+    """应用退出时把批量队列里剩下的节点冲出去并停掉后台线程。"""
+    if _lf is None:
+        return
+    try:
+        _lf.shutdown()               # SDK 的 shutdown 自带 flush
+    except Exception as ex:
+        logger.warning(f"Langfuse 关闭失败: {ex}")
+
+
+# ── 一次请求的把手 ────────────────────────────────────────────────────────────
+
+class _TraceHandle:
+    """一条进行中 trace：只装 trace 级 meta 和根 observation，不装孩子也不装时间。"""
+
+    def __init__(self, root: Any):
+        self.root = root
+        self.meta: Dict[str, Any] = {}
+
+
+class _Node:
+    """埋点方看到的节点把手。attrs 累加到节点退出时才推给 SDK ——
+    update(metadata=) 是整值覆盖，而 .end() 之后再也写不进去。"""
+    __slots__ = ("attrs",)
+
+    def __init__(self, attrs: Dict[str, Any]):
+        self.attrs: Dict[str, Any] = dict(attrs)
+
+
+_trace: ContextVar[Optional[_TraceHandle]] = ContextVar("optiserve_trace", default=None)
+
+
+# ── 开 trace ──────────────────────────────────────────────────────────────────
+
+@contextmanager
+def start_trace(trace_id: str, root_name: str = "request") -> Generator[Any, None, None]:
+    """新开一次 trace：根节点活到请求收尾，退出时先写 trace 级字段再结束它。"""
+    if _lf is None:
+        # 仍然占住 ContextVar：trace_scope 靠它按身份复用同一条 trace
+        handle = _TraceHandle(None)
+        token = _trace.set(handle)
         try:
-            yield span
-        except Exception as ex:
-            span.status = "error"
-            span.error = str(ex)
+            yield handle
+        finally:
+            _trace.reset(token)
+        return
+
+    # trace_id 由 request_id 派生：同一个 request_id 重复开仍落在同一条 trace 上，
+    # 响应体里的 ID 因此就是 Langfuse 的 trace ID
+    seeded = _lf.create_trace_id(seed=f"optiserve:{trace_id}")
+    with _lf.start_as_current_observation(
+        trace_context={"trace_id": seeded},
+        name=root_name,
+        as_type="span",
+        end_on_exit=False,          # 收尾留给我们：update_trace 必须赶在 end 之前
+    ) as root:
+        handle = _TraceHandle(root)
+        token = _trace.set(handle)
+        try:
+            yield handle
+        except BaseException as ex:
+            _push(root.update, level="ERROR", status_message=str(ex))
             raise
         finally:
-            _active.reset(token)
-            self._close(span)
-
-    def event(self, name: str, **attrs: Any) -> None:
-        target = _active.get() or self.root
-        target.events.append({
-            "name":  name,
-            "time":  datetime.now().isoformat(),
-            "attrs": dict(attrs),
-        })
-
-    # ── 导出 ──────────────────────────────────────────────────────────────────
-
-    def as_tree(self) -> Dict[str, Any]:
-        return {
-            "trace_id":   self.trace_id,
-            "span_count": len(self._spans),
-            "latency_ms": self.root.latency_ms,
-            "status":     self.root.status,
-            "meta":       dict(self.meta),
-            "root":       self.root.as_dict(),
-        }
-
-
-# ── 上下文 ────────────────────────────────────────────────────────────────────
-
-_trace:  ContextVar[Optional[TraceRecorder]] = ContextVar("optiserve_trace", default=None)
-_active: ContextVar[Optional[Span]]          = ContextVar("optiserve_active_span", default=None)
-
-
-def current_trace() -> Optional[TraceRecorder]:
-    return _trace.get()
+            _trace.reset(token)
+            _push(root.update_trace, **_trace_fields(root_name, handle.meta))
+            _push(root.end)
 
 
 @contextmanager
-def start_trace(trace_id: str, root_name: str = "request") -> Iterator[TraceRecorder]:
-    """新开一次 trace，退出时落进环形缓冲并触发导出钩子。"""
-    recorder = TraceRecorder(trace_id, root_name)
-    token_trace  = _trace.set(recorder)
-    token_active = _active.set(recorder.root)
-    try:
-        yield recorder
-    except Exception as ex:
-        recorder.root.status = "error"
-        recorder.root.error  = str(ex)
-        raise
-    finally:
-        _active.reset(token_active)
-        _trace.reset(token_trace)
-        recorder._close(recorder.root)
-        publish(recorder)
-
-
-@contextmanager
-def trace_scope(trace_id: str, root_name: str = "request") -> Iterator[TraceRecorder]:
-    """已有 trace 就沿用（API 层已经开过），没有才自己开一条并发布。
-
-    编排图与检索链路的入口都用它，这样 /chat、/search、评测三条来路都能拿到树，
-    而嵌套调用不会开出第二条互不可见的 trace。
-    """
+def trace_scope(trace_id: str, root_name: str = "request") -> Generator[Any, None, None]:
+    """已有 trace 就沿用（API 层已经开过），没有才自己开一条。"""
     existing = _trace.get()
     if existing is not None:
         yield existing
         return
-    with start_trace(trace_id, root_name) as recorder:
-        yield recorder
+    with start_trace(trace_id, root_name) as handle:
+        yield handle
 
 
 @contextmanager
-def trace_span(name: str, **attrs: Any) -> Iterator[Optional[Span]]:
-    """在当前位置开子片段；没有 trace 时整段空转，埋点方不需要写判空。"""
-    recorder = _trace.get()
-    if recorder is None:
-        yield None
-        return
-    with recorder.span(name, **attrs) as span:
-        yield span
+def trace_span(name: str, **attrs: Any) -> Generator[Any, None, None]:
+    """在当前位置开一个节点；没 trace 时整段空转，埋点方不需要写判空。
 
+    父节点由 OTel context 决定：contextvars 会被 asyncio.create_task 复制，
+    所以 LangGraph 的并发分支各自挂在自己的链上，不会互相插错父节点。
+    """
+    if _lf is None or _trace.get() is None:
+        # 这里不建 observation，否则后台任务那种空 Context 里会漏出一堆孤儿 trace
+        yield _Node({})
+        return
+
+    with _lf.start_as_current_observation(
+        name=name,
+        as_type=_as_type(name),
+        metadata=dict(attrs),
+        end_on_exit=False,
+    ) as obs:
+        node = _Node(attrs)
+        error: Optional[BaseException] = None
+        try:
+            yield node
+        except BaseException as ex:
+            error = ex
+            raise
+        finally:
+            _push(obs.update, metadata=dict(node.attrs),
+                  **({"level": "ERROR", "status_message": str(error)} if error else {}))
+            _push(obs.end)
+
+
+def _push(fn: Any, **kwargs: Any) -> None:
+    """SDK 侧抛错既不能变成请求失败，也不能顶掉节点自己的业务异常。"""
+    try:
+        fn(**kwargs)
+    except Exception as ex:
+        logger.warning(f"Langfuse 写入失败: {type(ex).__name__}: {ex}")
+
+
+# ── 事件 ──────────────────────────────────────────────────────────────────────
 
 def add_event(name: str, **attrs: Any) -> None:
-    """往当前片段挂一条事件；没有 trace 时空转。"""
-    recorder = _trace.get()
-    if recorder is not None:
-        recorder.event(name, **attrs)
+    """往当前节点挂一条 OTel 事件；链路没活起来就直接返回。
 
-
-# ── 导出钩子 ──────────────────────────────────────────────────────────────────
-
-_finish_hook: Optional[Callable[[Dict[str, Any]], None]] = None
-
-
-def set_finish_hook(hook: Optional[Callable[[Dict[str, Any]], None]]) -> None:
-    """注册 trace 收尾回调（Langfuse 上报走这里）。传 None 撤销。"""
-    global _finish_hook
-    _finish_hook = hook
-
-
-def publish(recorder: TraceRecorder) -> None:
-    """把一次已完成的 span 树交给导出钩子。导出异常绝不影响请求链路。
-
-    没有钩子时连 as_tree() 都不做：span 树随 recorder 一起释放。
+    注意：Langfuse 不摄取 OTel span event，这些事件只在 OTel 侧（如另接 collector）可见。
     """
-    if _finish_hook is None:
+    if _lf is None or _trace.get() is None:
+        return                      # 也是 opentelemetry 的 import 闸门：装了 langfuse 才装了它
+
+    from opentelemetry import trace as otel_trace
+
+    span = otel_trace.get_current_span()
+    if not span.is_recording():
         return
     try:
-        _finish_hook(recorder.as_tree())
+        span.add_event(name, attributes=_otel_attributes(attrs))
     except Exception as ex:
-        logger.warning(f"trace 导出失败 trace_id={recorder.trace_id}: {ex}")
+        logger.warning(f"Langfuse 事件写入失败: {type(ex).__name__}: {ex}")
+
+
+def _otel_attributes(attrs: Dict[str, Any]) -> Dict[str, Any]:
+    """OTel attributes 只收标量与标量序列；其余值转字符串，脏键值直接丢掉。"""
+    out: Dict[str, Any] = {}
+    for key, value in attrs.items():
+        scalar = isinstance(value, (str, bool, int, float))
+        sequence = (isinstance(value, (list, tuple)) and bool(value)
+                    and all(isinstance(v, (str, bool, int, float)) for v in value))
+        if scalar or sequence:
+            out[key] = list(value) if isinstance(value, tuple) else value
+        elif value is not None:
+            out[key] = str(value)
+    return out
+
+
+# ── trace 级字段 ──────────────────────────────────────────────────────────────
+
+def _trace_fields(root_name: str, meta: Dict[str, Any]) -> Dict[str, Any]:
+    """一次请求在 Langfuse 列表页要能按用户/会话/意图筛。"""
+    tags: List[str] = []
+    if meta.get("intent"):
+        tags.append(f"intent:{meta['intent']}")
+    if meta.get("agent_type"):
+        tags.append(f"agent:{meta['agent_type']}")
+    if meta.get("escalated"):
+        tags.append("escalated")
+    if meta.get("degradations"):
+        tags.append("degraded")
+    return {
+        "name": f"{root_name}:{meta['intent']}" if meta.get("intent") else root_name,
+        "user_id": meta.get("user_id") or None,
+        "session_id": meta.get("conv_id") or None,
+        "output": {"routing_reason": meta["routing_reason"]} if meta.get("routing_reason") else None,
+        "metadata": {k: v for k, v in meta.items() if v is not None},
+        "tags": tags,
+    }
