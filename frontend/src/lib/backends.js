@@ -8,8 +8,7 @@ const TIMEOUT = {
   read: 10000,
   search: 60000,
   write: 120000,
-  chat: 150000,
-  evaluation: 900000
+  chat: 150000
 }
 
 export function createInitialSettings() {
@@ -43,15 +42,6 @@ export function reloadSkills() {
 
 export function requestKnowledgeStats(signal) {
   return requestJson('/knowledge/stats', { signal })
-}
-
-export function runEvaluation(body = null) {
-  return requestJson('/eval/run', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-    timeoutMs: TIMEOUT.evaluation
-  }).then(normalizeEvaluationResponse)
 }
 
 export function requestSearch(query, topK = 5, signal) {
@@ -139,24 +129,6 @@ function normalizeHealthResponse(raw) {
     status: raw?.status || 'ok',
     dependencies,
     unhealthy: dependencies.filter(item => item.state !== 'ok')
-  }
-}
-
-function normalizeEvaluationResponse(raw) {
-  return {
-    passRate: Number(raw?.pass_rate ?? 0),
-    total: Number(raw?.total ?? 0),
-    passed: Number(raw?.passed ?? 0),
-    avgScores: raw?.avg_scores || {},
-    regressions: raw?.regressions || [],
-    recommendations: raw?.recommendations || [],
-    results: (raw?.results || []).map(item => ({
-      testId: item?.test_id || '',
-      passed: Boolean(item?.passed),
-      scores: item?.scores || {},
-      detail: item?.detail || '',
-      metadata: item?.metadata || {}
-    }))
   }
 }
 

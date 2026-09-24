@@ -63,10 +63,15 @@ def shutdown_tracing() -> None:
 # ── 一次请求的把手 ────────────────────────────────────────────────────────────
 
 class _TraceHandle:
-    """一条进行中 trace：只装 trace 级 meta 和根 observation，不装孩子也不装时间。"""
+    """一条进行中 trace：装 trace 级 meta、input/output 和根 observation，不装孩子也不装时间。
 
-    def __init__(self, root: Any):
+    input/output 是 Langfuse 托管评测器唯一读得到的两个字段（它不遍历子节点）。
+    """
+
+    def __init__(self, root: Any, input: Any = None):
         self.root = root
+        self.input = input
+        self.output: Any = None
         self.meta: Dict[str, Any] = {}
 
 
@@ -85,11 +90,14 @@ _trace: ContextVar[Optional[_TraceHandle]] = ContextVar("optiserve_trace", defau
 # ── 开 trace ──────────────────────────────────────────────────────────────────
 
 @contextmanager
-def start_trace(trace_id: str, root_name: str = "request") -> Generator[Any, None, None]:
-    """新开一次 trace：根节点活到请求收尾，退出时先写 trace 级字段再结束它。"""
+def start_trace(trace_id: str, root_name: str = "request", input: Any = None) -> Generator[Any, None, None]:
+    """新开一次 trace：根节点活到请求收尾，退出时先写 trace 级字段再结束它。
+
+    input 在开 trace 时就定下：请求中途抛错时收尾的 update_trace 仍会把它写出去。
+    """
     if _lf is None:
         # 仍然占住 ContextVar：trace_scope 靠它按身份复用同一条 trace
-        handle = _TraceHandle(None)
+        handle = _TraceHandle(None, input)
         token = _trace.set(handle)
         try:
             yield handle
@@ -98,7 +106,6 @@ def start_trace(trace_id: str, root_name: str = "request") -> Generator[Any, Non
         return
 
     # trace_id 由 request_id 派生：同一个 request_id 重复开仍落在同一条 trace 上，
-    # 响应体里的 ID 因此就是 Langfuse 的 trace ID
     seeded = _lf.create_trace_id(seed=f"optiserve:{trace_id}")
     with _lf.start_as_current_observation(
         trace_context={"trace_id": seeded},
@@ -106,7 +113,7 @@ def start_trace(trace_id: str, root_name: str = "request") -> Generator[Any, Non
         as_type="span",
         end_on_exit=False,          # 收尾留给我们：update_trace 必须赶在 end 之前
     ) as root:
-        handle = _TraceHandle(root)
+        handle = _TraceHandle(root, input)
         token = _trace.set(handle)
         try:
             yield handle
@@ -115,7 +122,7 @@ def start_trace(trace_id: str, root_name: str = "request") -> Generator[Any, Non
             raise
         finally:
             _trace.reset(token)
-            _push(root.update_trace, **_trace_fields(root_name, handle.meta))
+            _push(root.update_trace, **_trace_fields(root_name, handle))
             _push(root.end)
 
 
@@ -172,10 +179,7 @@ def _push(fn: Any, **kwargs: Any) -> None:
 # ── 事件 ──────────────────────────────────────────────────────────────────────
 
 def add_event(name: str, **attrs: Any) -> None:
-    """往当前节点挂一条 OTel 事件；链路没活起来就直接返回。
-
-    注意：Langfuse 不摄取 OTel span event，这些事件只在 OTel 侧（如另接 collector）可见。
-    """
+    """往当前节点挂一条 OTel 事件；链路没活起来就直接返回。"""
     if _lf is None or _trace.get() is None:
         return                      # 也是 opentelemetry 的 import 闸门：装了 langfuse 才装了它
 
@@ -206,8 +210,9 @@ def _otel_attributes(attrs: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── trace 级字段 ──────────────────────────────────────────────────────────────
 
-def _trace_fields(root_name: str, meta: Dict[str, Any]) -> Dict[str, Any]:
+def _trace_fields(root_name: str, handle: "_TraceHandle") -> Dict[str, Any]:
     """一次请求在 Langfuse 列表页要能按用户/会话/意图筛。"""
+    meta = handle.meta
     tags: List[str] = []
     if meta.get("intent"):
         tags.append(f"intent:{meta['intent']}")
@@ -221,7 +226,8 @@ def _trace_fields(root_name: str, meta: Dict[str, Any]) -> Dict[str, Any]:
         "name": f"{root_name}:{meta['intent']}" if meta.get("intent") else root_name,
         "user_id": meta.get("user_id") or None,
         "session_id": meta.get("conv_id") or None,
-        "output": {"routing_reason": meta["routing_reason"]} if meta.get("routing_reason") else None,
+        "input": handle.input,
+        "output": handle.output,
         "metadata": {k: v for k, v in meta.items() if v is not None},
         "tags": tags,
     }

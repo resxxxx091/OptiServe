@@ -276,7 +276,7 @@ class AgentOrchestrator:
         处理一次请求的完整流程（拓扑见 agents.graph.ORCHESTRATION_GRAPH）：
           意图补做 → 直返守卫 → 路由 → 单 Agent / Send 并行扇出 → 结果
         """
-        # /chat 已经开过 trace 就直接沿用，评测与 CLI 这类入口自己开一条
+        # /chat 已经开过 trace 就直接沿用，没有现成 trace 的入口自己开一条
         with trace_scope(req.request_id, "chat") as recorder:
             recorder.meta.update(
                 user_id=req.user_id,

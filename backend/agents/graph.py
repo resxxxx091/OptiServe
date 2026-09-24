@@ -237,7 +237,7 @@ def _orchestrator(config: RunnableConfig):
 
 
 async def recognize_intent(state: OrchestratorState, config: RunnableConfig) -> Dict[str, Any]:
-    """意图补做：/chat 已在 API 层识别过则空转，CLI 与评测在这里补上。"""
+    """意图补做：/chat 已在 API 层识别过则空转。"""
     orc = _orchestrator(config)
     req = state["req"]
     with trace_span("intent_recognition", intent=req.intent.value if req.intent else None) as span:

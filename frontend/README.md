@@ -8,7 +8,6 @@ OptiServe 智能客服系统的调试工作台，单页 Vue 3 应用，连接 `b
 |---|---|---|
 | 对话 | 发一条真实请求，看意图、路由、耗时 | `POST /chat` |
 | 知识库 | 检索链路验证、文档导入、文件上传、Skills 查看与热加载 | `POST /search`、`POST /knowledge/add`、`POST /knowledge/upload`、`GET /knowledge/stats`、`GET /skills`、`POST /skills/reload` |
-| 评测 | 运行内置评测用例，看通过率、四维均分、回归与建议 | `POST /eval/run` |
 
 顶栏常驻健康指示，来自 `GET /health`；运行状态卡在 `GET /monitor`。
 

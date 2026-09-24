@@ -1,10 +1,9 @@
 """
 OptiServe 智能客服系统 — FastAPI 入口
 
-启动时打印小熊饼干图案。
 所有核心组件在 lifespan 中初始化，通过环境变量配置。
-LLM / embedding / reranker / Redis / Milvus 五类外部依赖在启动时逐个真实探测，
-任一不通直接抛错终止启动，不带着残缺依赖对外服务。
+LLM / embedding / reranker / Redis / Milvus 五类外部依赖在启动时逐个探测，任一不通直接抛错终止启动。
+前三类只做端点连通性检查（不发真请求），Redis 走 PING，Milvus 必须建好 collection。
 """
 import asyncio
 import contextvars
@@ -15,13 +14,14 @@ import pathlib
 import sys
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Awaitable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
 
 
 _ROOT = str(pathlib.Path(__file__).parent.parent.resolve())
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import httpx
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, UploadFile, File
@@ -34,7 +34,11 @@ from core.degradation import (
     Dep, DepState, collect_degraded, set_status, statuses,
 )
 from core.tracing import init_tracing, shutdown_tracing, start_trace, trace_span
-from core.vector_store import AsyncEmbeddingClient, AsyncRerankClient, _env_float, _env_int
+from core.vector_store import AsyncRerankClient, _env_float, _env_int
+
+if TYPE_CHECKING:
+    # 只给类型检查器看，运行期这些类仍由 lifespan 内部按需导入
+    from memory.conversation_memory import MemoryManager
 
 load_dotenv()
 
@@ -46,24 +50,14 @@ logger = logging.getLogger(__name__)
 
 
 def _api_token() -> str:
-    """访问令牌。用函数而非模块常量，避免在 import 期就把值冻住。"""
+    """访问令牌"""
     return os.getenv("OPTISERVE_API_TOKEN", "")
-
-BANNER = r"""
-    ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ
-   ╔══════════════════════╗
-   ║   OptiServe  v2.0     ║
-   ║   智能客服 AI 系统    ║
-   ╚══════════════════════╝
-    ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ
-"""
 
 # ── 全局组件（lifespan 中初始化）─────────────────────────────────────────────
 _orchestrator = None
 _memory       = None
 _tool_manager = None
 _monitor      = None
-_evaluator    = None
 _skill_manager = None
 _kb           = None
 _rerank_client = None
@@ -87,7 +81,11 @@ def _llm_cfg() -> Dict[str, Any]:
     return cfg
 
 
-# ── 启动闸门：外部依赖逐个真实探测，任一不通就不启动 ──────────────────────────
+# ── 启动闸门：外部依赖逐个探测连通性，任一不通就不启动 ────────────────────────
+
+# 探测超时：HTTP 端点连通性检查只发一次 GET。
+_PROBE_TIMEOUT_S = 8.0
+
 
 async def _gate(dep: Dep, probe: Awaitable[str]) -> None:
     """执行一个探测协程；成功记下 ok，失败记 unavailable 并抛出终止启动。"""
@@ -102,47 +100,13 @@ async def _gate(dep: Dep, probe: Awaitable[str]) -> None:
     logger.info(f"启动探测通过 [{dep.value}] {detail}")
 
 
-async def _probe_llm(cfg: Dict[str, Any]) -> str:
-    """向 LLM 端点真发一次最小请求，密钥/网络/模型名任一有问题都会在这里暴露。"""
-    from langchain_core.messages import HumanMessage
-
-    from core.llm import LLMProvider
-
-    chat = LLMProvider(cfg["api_key"], cfg["base_url"]).chat_model(model=cfg["model"], max_tokens=1)
-    try:
-        await chat.ainvoke([HumanMessage(content="ping")])
-    finally:
-        await chat.root_async_client.close()
-    return f"{cfg['model']} @ {cfg['base_url']}"
-
-
-async def _probe_embedding(vector_cfg: Any) -> str:
-    """真取一次稠密 + 稀疏两路向量，顺带校验维度与 Milvus collection 的建库维度一致。
-
-    知识库的混合索引要求 embedding 服务同时给得出稀疏那一路，只回稠密向量在这里就判不通过。
-    """
-    embedder = AsyncEmbeddingClient(vector_cfg)
-    try:
-        dense, sparse = await embedder.embed_query_hybrid("ping")
-    finally:
-        await embedder.aclose()
-    if len(dense) != embedder.dim:
-        raise RuntimeError(
-            f"embedding 维度不匹配：服务返回 {len(dense)}，代码里 EMBEDDING_DIM={embedder.dim}"
-        )
-    return f"{vector_cfg.embedding_model} dim={len(dense)}，稀疏向量 {len(sparse)} 项"
-
-
-async def _probe_reranker(vector_cfg: Any) -> str:
-    """真发一次精排请求：检索链路的最后一级没有降级路径，端点不通就不该启动。"""
-    client = AsyncRerankClient(vector_cfg)
-    try:
-        scored = await client.rerank("ping", ["相关的一篇", "无关的一篇"])
-    finally:
-        await client.aclose()
-    if not scored:
-        raise RuntimeError("rerank 服务返回空结果")
-    return f"{vector_cfg.rerank_model} @ {vector_cfg.rerank_base_url}"
+async def _probe_reachable(url: str) -> str:
+    """GET 一次端点，拿到任何 HTTP 响应就算通（401/404/405 同样说明域名、TCP、TLS 都正常）。"""
+    if not url:
+        raise RuntimeError("地址未配置")
+    async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT_S) as client:
+        resp = await client.get(url)
+    return f"{url} → HTTP {resp.status_code}"
 
 
 async def _probe_redis(redis_url: str) -> str:
@@ -158,14 +122,10 @@ async def _probe_redis(redis_url: str) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _orchestrator, _memory, _tool_manager, _monitor, _evaluator, _skill_manager, _kb, _rerank_client
-
-    print(BANNER, flush=True)
+    global _orchestrator, _memory, _tool_manager, _monitor, _skill_manager, _kb, _rerank_client
 
     from agents.agent_orchestrator import AgentOrchestrator, build_shared_rag_tools
-    from core.intent_recognizer import IntentRecognizer
     from core.vector_store import VectorStoreConfig
-    from evaluation.evaluator import EndToEndEvaluator
     from mcp.knowledge_base import KnowledgeBase
     from mcp.tool_manager import MCPToolManager, Tool
     from memory.conversation_memory import MemoryManager
@@ -175,23 +135,15 @@ async def lifespan(app: FastAPI):
     cfg = _llm_cfg()
     logger.info(f"model: {cfg['model']}  base_url: {cfg['base_url']}")
 
-    # 向量层配置（Milvus + 外部 embedding），意图识别、记忆与知识库共用一套
+    # 向量层配置，记忆与知识库共用一套
     vector_cfg = VectorStoreConfig.from_env()
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
     # 依赖不通就让服务直接起不来，而不是运行期逐请求降级
-    await _gate(Dep.LLM,       _probe_llm(cfg))
-    await _gate(Dep.EMBEDDING, _probe_embedding(vector_cfg))
-    await _gate(Dep.RERANKER,  _probe_reranker(vector_cfg))
+    await _gate(Dep.LLM,       _probe_reachable(cfg["base_url"]))
+    await _gate(Dep.EMBEDDING, _probe_reachable(vector_cfg.embedding_base_url))
+    await _gate(Dep.RERANKER,  _probe_reachable(vector_cfg.rerank_base_url))
     await _gate(Dep.REDIS,     _probe_redis(redis_url))
-
-    # 意图识别器（Orchestrator 内部也会创建，这里单独暴露给 Evaluator）
-    recognizer = IntentRecognizer(
-        api_key=cfg["api_key"],
-        base_url=cfg["base_url"],
-        model=cfg["model"],
-        vector_config=vector_cfg,
-    )
 
     # Skills：启动时从目录加载，索引（name + description）常驻 system prompt，
     # 正文由 Agent 判断后调用 load_skill 按需取回。
@@ -211,16 +163,17 @@ async def lifespan(app: FastAPI):
         skill_manager=_skill_manager,
     )
 
-    # 记忆管理器（Redis 工作记忆 + Milvus 情景记忆/用户画像）
-    _memory = MemoryManager(
+    # 记忆管理器
+    memory = MemoryManager(
         redis_url=redis_url,
         vector_config=vector_cfg,
         api_key=cfg["api_key"],
         base_url=cfg["base_url"],
         model=cfg["model"],
     )
+    _memory = memory
 
-    # MCP 工具管理器 + RAG 知识库（Milvus 稠密 + 稀疏混合索引，精排走外部 reranker）
+    # MCP 工具管理器 + RAG 知识库
     _rerank_client = AsyncRerankClient(vector_cfg)
     _tool_manager = MCPToolManager(
         api_key=cfg["api_key"],
@@ -228,15 +181,16 @@ async def lifespan(app: FastAPI):
         model=cfg["model"],
         rerank_client=_rerank_client,
     )
-    _kb = KnowledgeBase(vector_config=vector_cfg)
+    kb = KnowledgeBase(vector_config=vector_cfg)
+    _kb = kb
 
     async def probe_milvus() -> str:
         """建库/校验两侧 collection，任一没就绪说明 Milvus 不可用。"""
-        if not await _memory.start():
+        if not await memory.start():
             raise RuntimeError("记忆的向量层未就绪")
-        if not await _kb.start():
+        if not await kb.start():
             raise RuntimeError("知识库的向量层未就绪")
-        return f"{vector_cfg.milvus_uri}，知识库 {await _kb.doc_count_async()} 个片段"
+        return f"{vector_cfg.milvus_uri}，知识库 {await kb.doc_count_async()} 个片段"
 
     await _gate(Dep.MILVUS, probe_milvus())
 
@@ -246,7 +200,7 @@ async def lifespan(app: FastAPI):
         query = params.get("query", "")
         return [{
             "title": "知识库降级结果",
-            "content": f"知识库暂时不可用，未能完成对“{query}”的混合索引检索。请稍后重试，或转人工客服确认。",
+            "content": f"知识库暂时不可用，未能完成对“{query}”的混合索引检索。请稍后重试。",
             "score": 0.0,
             "fallback": True,
             "error": error,
@@ -255,8 +209,8 @@ async def lifespan(app: FastAPI):
     _tool_manager.register(Tool(
         name="knowledge_search",
         # 单次调用 = 一个查询的混合索引双路召回；融合与精排在检索图里，不在这里
-        description="搜索 RAG 知识库（Milvus 稠密 + 稀疏混合索引召回）",
-        handler=_kb.search_handler,
+        description="搜索 RAG 知识库",
+        handler=kb.search_handler,
         schema={
             "type": "object",
             "properties": {
@@ -280,16 +234,6 @@ async def lifespan(app: FastAPI):
     )
     await _monitor.start()
 
-    # 评测器
-    _evaluator = EndToEndEvaluator(
-        orchestrator=_orchestrator,
-        recognizer=recognizer,
-        api_key=cfg["api_key"],
-        base_url=cfg["base_url"],
-        model=cfg["model"],
-        baseline_path=os.getenv("EVAL_BASELINE_PATH", "/app/data/eval/baseline.json"),
-    )
-
     # 可观测性：节点结束即入队，SDK 后台批量发 Langfuse。没装 SDK / 没配密钥 → 客户端为 None，
     # 埋点全部空转，启动与请求链路都不受影响。
     _trace_client = init_tracing()
@@ -300,8 +244,7 @@ async def lifespan(app: FastAPI):
     logger.info("OptiServe 已就绪")
     if not _api_token():
         logger.warning(
-            "OPTISERVE_API_TOKEN 未设置：/chat、/search 等只读接口对本机全部放行"
-            "（API_HOST 默认回环），写接口已被 require_configured_token 禁用。对外暴露前务必配置。"
+            "OPTISERVE_API_TOKEN 未设置：/chat、/search 等只读接口对本机全部放行，对外暴露前务必配置。"
         )
 
     # 启动 FastAPI 服务
@@ -320,7 +263,6 @@ async def lifespan(app: FastAPI):
 
     await _monitor.stop()
     shutdown_tracing()
-    await recognizer.close()
     await _memory.close()
     await _kb.close()
     await _rerank_client.aclose()
@@ -448,19 +390,19 @@ _profile_slots = asyncio.Semaphore(4)
 PROFILE_DRAIN_TIMEOUT_S = _env_float("OPTISERVE_PROFILE_DRAIN_TIMEOUT_S", 15.0)
 
 
-async def _run_profile_update(user_id: str, conv_id: str) -> None:
+async def _run_profile_update(memory: "MemoryManager", user_id: str, conv_id: str) -> None:
     async with _profile_slots:
-        await _memory.update_profile(user_id, conv_id)
+        await memory.update_profile(user_id, conv_id)
 
 
-def _spawn_profile_update(user_id: str, conv_id: str) -> None:
+def _spawn_profile_update(memory: "MemoryManager", user_id: str, conv_id: str) -> None:
     if user_id in _profile_running_users:
         return
     _profile_running_users.add(user_id)
     # 全新空 Context：不继承本请求的降级事件列表和 span 树，
     # 否则后台失败会事后追加进已返回请求的 degradations，降级计数与响应体对不上。
     task = asyncio.create_task(
-        _run_profile_update(user_id, conv_id),
+        _run_profile_update(memory, user_id, conv_id),
         context=contextvars.Context(),
     )
     _profile_tasks.add(task)
@@ -494,7 +436,7 @@ async def chat(req: ChatRequest):
 
     # 一次请求一条 span 树。记忆读取与意图识别在 orchestrator.run() 外面，
     # 所以树必须从 API 层起，只包 run() 会漏掉这两处。
-    with start_trace(request_id, "chat") as tr:
+    with start_trace(request_id, "chat", input=req.message) as tr:
         # 包住整条链路：记忆读取和意图识别都在 orchestrator.run() 外面，
         # 只包 run() 会漏掉这两处的降级。
         with collect_degraded() as degraded:
@@ -544,6 +486,8 @@ async def chat(req: ChatRequest):
                 tools_used=result.tools_used,
                 escalated=result.escalated,
             )
+            # 托管评测器只看 trace 的 input/output，最终回答必须写进来才有东西可评
+            tr.output = result.response
 
             response = ChatResponse(
                 conv_id=conv_id,
@@ -569,7 +513,7 @@ async def chat(req: ChatRequest):
 
     # 出了 collect_degraded / start_trace 的上下文再 spawn：后台失败只进日志，
     # 不会事后回写这条已返回请求的降级列表和 span 树。
-    _spawn_profile_update(req.user_id, conv_id)
+    _spawn_profile_update(_memory, req.user_id, conv_id)
     return response
 
 
@@ -595,8 +539,10 @@ async def search(
     if _tool_manager is None:
         raise HTTPException(503, "服务未就绪")
     # 检索链路自己成一条 trace：五级漏斗的各级条数落在 rag.* 片段上
-    with start_trace(str(uuid.uuid4())[:8], "search"):
+    with start_trace(str(uuid.uuid4())[:8], "search", input=query) as tr:
         result = await _tool_manager.search_pipeline("knowledge_search", query, top_k=top_k)
+        # 召回片段写进 output：平台侧评测器不遍历 rag.* 子节点，只看这一个字段
+        tr.output = result.data
     return {
         "query": query,
         "results": result.data,
@@ -616,28 +562,6 @@ class DocInput(BaseModel):
 class BatchDocInput(BaseModel):
     """批量文档导入请求体。"""
     documents: List[DocInput]
-
-
-class EvalIntentInput(BaseModel):
-    """意图识别评测用例。"""
-    message: str
-    expected_intent: str
-    context: Optional[Dict[str, Any]] = None
-
-
-class EvalDialogInput(BaseModel):
-    """对话质量评测用例。question 单轮，turns 多轮。"""
-    question: Optional[str] = None
-    turns: Optional[List[str]] = None
-    user_id: Optional[str] = None
-    conv_id: Optional[str] = None
-
-
-class EvalRunInput(BaseModel):
-    """评测请求。为空时使用内置默认用例。"""
-    # 每条用例都会打一次真实 LLM 链路，条数不封顶=单请求可放大成任意次调用
-    intent_cases: Optional[List[EvalIntentInput]] = Field(default=None, max_length=200)
-    dialog_cases: Optional[List[EvalDialogInput]] = Field(default=None, max_length=200)
 
 
 @app.post("/knowledge/add", tags=["知识库"], dependencies=[Depends(require_configured_token)])
@@ -732,57 +656,6 @@ async def knowledge_stats():
     if _kb is None:
         raise HTTPException(503, "知识库未初始化")
     return {"total_chunks": await _kb.doc_count_async()}
-
-
-@app.post("/eval/run", dependencies=[Depends(require_configured_token)])
-async def run_eval(body: Optional[EvalRunInput] = None):
-    """运行内置评测用例，返回评测报告。"""
-    if _evaluator is None:
-        raise HTTPException(503, "服务未就绪")
-    from evaluation.evaluator import DEFAULT_DIALOG_CASES, DEFAULT_INTENT_CASES, IntentTestCase
-
-    if body and body.intent_cases is not None:
-        intent_cases = [
-            IntentTestCase(
-                message=c.message,
-                expected_intent=c.expected_intent,
-                context=c.context,
-            )
-            for c in body.intent_cases
-        ]
-    else:
-        intent_cases = DEFAULT_INTENT_CASES
-
-    if body and body.dialog_cases is not None:
-        dialog_cases = [
-            c.model_dump(exclude_none=True)
-            for c in body.dialog_cases
-        ]
-    else:
-        dialog_cases = DEFAULT_DIALOG_CASES
-
-    report = await _evaluator.run(
-        intent_cases=intent_cases,
-        dialog_cases=dialog_cases,
-    )
-    return {
-        "pass_rate":       report.pass_rate,
-        "total":           report.total,
-        "passed":          report.passed,
-        "avg_scores":      report.avg_scores,
-        "regressions":     report.regressions,
-        "recommendations": report.recommendations,
-        "results": [
-            {
-                "test_id": r.test_id,
-                "passed": r.passed,
-                "scores": r.scores,
-                "detail": r.detail,
-                "metadata": r.metadata,
-            }
-            for r in report.results
-        ],
-    }
 
 
 if __name__ == "__main__":

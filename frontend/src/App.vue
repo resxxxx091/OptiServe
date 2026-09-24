@@ -9,7 +9,6 @@
       <nav class="view-nav" aria-label="工作区">
         <button :class="{ active: activeView === 'chat' }" @click="activeView = 'chat'">对话</button>
         <button :class="{ active: activeView === 'knowledge' }" @click="activeView = 'knowledge'">知识库</button>
-        <button :class="{ active: activeView === 'evaluation' }" @click="activeView = 'evaluation'">评测</button>
       </nav>
 
       <div class="topbar-tools">
@@ -301,85 +300,6 @@
         </div>
       </section>
     </section>
-
-    <section v-else class="page page-evaluation">
-      <div class="page-heading">
-        <div class="heading-copy">
-          <span class="kicker">POST /eval/run</span>
-          <h1>评测 Agent</h1>
-          <p>运行 FastAPI 内置评测，查看意图识别、对话质量和回归结果。</p>
-        </div>
-        <button @click="runEvaluation" :disabled="busy">{{ busy ? '运行中...' : '运行评测' }}</button>
-      </div>
-
-      <div v-if="evalData" class="evaluation-content">
-        <div class="evaluation-summary">
-          <div class="score-hero"><span>通过率</span><strong>{{ formatPercent(evalData.passRate) }}</strong><small>{{ evalData.passed }} / {{ evalData.total }} 条用例通过</small></div>
-          <div><span>通过</span><strong>{{ evalData.passed }}</strong></div>
-          <div><span>总数</span><strong>{{ evalData.total }}</strong></div>
-          <div><span>回归</span><strong :class="evalData.regressions.length ? 'danger' : 'success'">{{ evalData.regressions.length }}</strong></div>
-        </div>
-        <div v-if="evalData.regressions.length" class="regression-list">
-          <p v-for="(item, index) in evalData.regressions" :key="index">{{ item }}</p>
-        </div>
-        <div class="evaluation-layout">
-          <section class="workspace-card">
-            <div class="card-heading"><h2>平均评分</h2><code>0 – 1</code></div>
-            <div class="score-list">
-              <div v-for="(value, key) in evalData.avgScores" :key="key"><span>{{ key }}</span><i><b :style="{ width: `${Math.min(Number(value) * 100, 100)}%` }"></b></i><strong>{{ Number(value).toFixed(2) }}</strong></div>
-            </div>
-          </section>
-          <section class="workspace-card">
-            <div class="card-heading"><h2>优化建议</h2><code>{{ evalData.recommendations.length }} 条</code></div>
-            <div v-if="evalData.recommendations.length" class="recommendations"><p v-for="(item, index) in evalData.recommendations" :key="index">{{ item }}</p></div>
-            <div v-else class="workspace-empty">本次评测没有返回额外建议。</div>
-          </section>
-        </div>
-        <section class="workspace-card case-workspace">
-          <div class="card-heading">
-            <h2>用例明细</h2>
-            <button v-if="failedCount" class="link-button" @click="onlyFailed = !onlyFailed">{{ onlyFailed ? `看全部 ${evalData.results.length} 条` : `只看失败 ${failedCount} 条` }}</button>
-            <code v-else>{{ evalData.results.length }} 条全通过</code>
-          </div>
-          <div v-if="visibleCases.length" class="case-list">
-            <details v-for="(item, index) in visibleCases" :key="`${item.testId}-${index}`" :open="!item.passed" :class="item.passed ? 'pass' : 'fail'">
-              <summary>
-                <span class="case-state">{{ item.passed ? 'PASS' : 'FAIL' }}</span>
-                <strong>{{ item.testId }}</strong>
-                <span class="case-detail">{{ item.detail }}</span>
-              </summary>
-              <div class="case-body">
-                <div class="score-chips">
-                  <span v-for="(value, key) in item.scores" :key="key">{{ key }} {{ Number(value).toFixed(2) }}</span>
-                </div>
-                <div v-if="item.metadata.cases?.length" class="intent-cases">
-                  <div v-for="(sub, subIndex) in item.metadata.cases" :key="subIndex" :class="['intent-case', { wrong: sub.expected !== sub.predicted }]">
-                    <span>{{ sub.message }}</span>
-                    <code>{{ sub.expected }} → {{ sub.predicted }} · {{ formatPercent(sub.confidence) }}</code>
-                  </div>
-                </div>
-                <template v-else>
-                  <p v-if="item.metadata.question" class="case-line"><b>Q</b><span>{{ item.metadata.question }}</span></p>
-                  <p v-if="item.metadata.response" class="case-line"><b>A</b><span>{{ item.metadata.response }}</span></p>
-                  <p v-if="caseFooter(item)" class="case-note">{{ caseFooter(item) }}</p>
-                </template>
-              </div>
-            </details>
-          </div>
-          <div v-else class="workspace-empty">{{ evalData.results.length ? '这一批里没有失败的用例。' : '后端没有返回逐用例结果。' }}</div>
-        </section>
-      </div>
-      <div v-else class="evaluation-empty">
-        <div class="empty-symbol">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <circle cx="10" cy="10" r="7" />
-            <path d="M8.2 7.4 13 10l-4.8 2.6z" stroke-linejoin="round" />
-          </svg>
-        </div>
-        <h2>还没有评测结果</h2>
-        <p>点击右上角运行一次评测。</p>
-      </div>
-    </section>
   </main>
 </template>
 
@@ -396,7 +316,6 @@ import {
   requestMonitor,
   requestSearch,
   requestSkills,
-  runEvaluation as requestEvaluation,
   saveSettings,
   uploadKnowledge
 } from './lib/backends'
@@ -423,8 +342,6 @@ const sidebarRef = ref(null)
 const monitorData = ref({ agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] })
 const skillsData = ref({ count: 0, skills: [], errors: [] })
 const lastResponse = ref(null)
-const evalData = ref(null)
-const onlyFailed = ref(false)
 const toast = ref('')
 let toastTimer
 let messageSequence = 0
@@ -474,12 +391,6 @@ const runtimeChips = computed(() => {
     })
   }
   return chips
-})
-
-const failedCount = computed(() => (evalData.value?.results || []).filter(item => !item.passed).length)
-const visibleCases = computed(() => {
-  const results = evalData.value?.results || []
-  return onlyFailed.value ? results.filter(item => !item.passed) : results
 })
 
 /* /search 的 stages 是「各级还剩几条」，只有粗排之后的三级是同一量纲的文档条数，
@@ -703,27 +614,6 @@ async function handleUpload(event) {
   } catch (error) {
     showToast(`文件导入失败：${error.message}`)
   } finally { busy.value = false }
-}
-
-async function runEvaluation() {
-  busy.value = true
-  try {
-    evalData.value = await requestEvaluation()
-    onlyFailed.value = false
-    const failures = evalData.value.results.filter(item => !item.passed).length
-    showToast(failures ? `评测完成：${failures} 条用例未通过` : '评测完成')
-  } catch (error) {
-    showToast(`评测运行失败：${error.message}`)
-  } finally { busy.value = false }
-}
-
-function caseFooter(item) {
-  const meta = item.metadata || {}
-  return [
-    meta.agent_type,
-    meta.intent,
-    meta.judge_failed ? `裁判失败：${meta.judge_error || 'unknown'}` : ''
-  ].filter(Boolean).join(' · ')
 }
 
 function formatPercent(value) {

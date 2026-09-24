@@ -167,7 +167,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 /* ===================== 顶栏 ===================== */
 
 .app-shell, .app-shell-chat { height: 100vh; overflow: hidden; }
-.app-shell-knowledge, .app-shell-evaluation {
+.app-shell-knowledge {
   height: auto;
   min-height: 100vh;
   overflow: visible;
@@ -376,7 +376,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   overflow: hidden;
 }
 
-.page-knowledge, .page-evaluation {
+.page-knowledge {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
@@ -385,7 +385,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   min-height: calc(100vh - var(--topbar-h));
 }
 
-.app-shell-knowledge .page, .app-shell-evaluation .page {
+.app-shell-knowledge .page {
   height: auto;
   min-height: calc(100vh - var(--topbar-h));
   overflow: visible;
@@ -700,7 +700,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 /* ===================== 空状态 ===================== */
 
-.empty-state, .evaluation-empty {
+.empty-state {
   display: grid;
   justify-items: center;
   align-content: center;
@@ -723,14 +723,14 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   font-size: 18px;
 }
 
-.empty-state h2, .evaluation-empty h2 {
+.empty-state h2 {
   margin: 0;
   color: var(--text);
   font-size: 15px;
   font-weight: var(--fw-strong);
 }
 
-.empty-state p, .evaluation-empty p { margin: 5px 0 0; font-size: 12px; }
+.empty-state p { margin: 5px 0 0; font-size: 12px; }
 
 .starter-prompts {
   display: flex;
@@ -1005,9 +1005,9 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   font-style: normal;
 }
 
-/* ===================== 知识库 / 链路 / 评测 布局 ===================== */
+/* ===================== 知识库 / 链路 布局 ===================== */
 
-.knowledge-layout, .evaluation-layout {
+.knowledge-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(330px, 0.92fr);
   gap: var(--sp-3);
@@ -1027,7 +1027,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   border-top: 1px solid var(--line);
 }
 
-.knowledge-view > .workspace-card, .evaluation-content > .evaluation-layout { margin-top: var(--sp-3); }
+.knowledge-view > .workspace-card { margin-top: var(--sp-3); }
 
 .search-line { display: flex; gap: var(--sp-2); }
 .search-line input { flex: 1; }
@@ -1181,226 +1181,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 .skill-item > span:not(.skill-dot), .skill-item small { color: var(--muted); font-size: 11px; }
 .skill-item small { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* ===================== 评测 ===================== */
-
-.evaluation-summary {
-  display: grid;
-  grid-template-columns: 1.4fr repeat(3, minmax(104px, 1fr));
-  gap: var(--sp-3);
-}
-
-.evaluation-summary > div {
-  padding: var(--sp-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--panel);
-  box-shadow: var(--shadow-low);
-}
-
-.evaluation-summary > div > span, .score-hero small {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.evaluation-summary > div > strong {
-  display: block;
-  margin-top: var(--sp-2);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 22px;
-  font-weight: var(--fw-strong);
-  font-variant-numeric: tabular-nums;
-}
-
-.score-hero { background: var(--accent-soft) !important; border-color: var(--accent-line) !important; }
-
-.score-hero strong {
-  margin: 5px 0 3px !important;
-  color: var(--accent) !important;
-  font-size: 30px !important;
-}
-
-.score-list { display: grid; gap: 11px; }
-
-.score-list > div {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr) 44px;
-  gap: 10px;
-  align-items: center;
-}
-
-.score-list span, .score-list strong { color: var(--text-soft); font-size: 12px; }
-.score-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.score-list strong { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
-
-.score-list i {
-  display: block;
-  height: 6px;
-  overflow: hidden;
-  border-radius: 99px;
-  background: var(--panel-3);
-}
-
-.score-list b {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
-  transition: width 280ms var(--ease);
-}
-
-.recommendations { display: grid; gap: var(--sp-2); }
-
-.recommendations p {
-  margin: 0;
-  padding: 9px 10px;
-  border-left: 2px solid var(--warn);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--bg-soft);
-  color: var(--text-soft);
-  font-size: 12px;
-  line-height: 1.65;
-}
-
-/* regressions 是"比基线差在哪"，比建议更硬，用 err 边 */
-.regression-list { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); }
-
-.regression-list p {
-  margin: 0;
-  padding: 9px 10px;
-  border-left: 2px solid var(--err);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--bg-soft);
-  color: var(--text-soft);
-  font-size: 12px;
-  line-height: 1.65;
-}
-
-/* 逐用例结果：默认折叠，失败的那几条后端就带 open */
-.evaluation-content > .case-workspace { margin-top: var(--sp-3); }
-
-.case-list {
-  display: grid;
-  gap: 6px;
-  max-height: 60vh;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.case-list details {
-  border: 1px solid var(--line);
-  border-left: 2px solid var(--kind-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-soft);
-}
-
-.case-list details.pass { border-left-color: var(--ok); }
-.case-list details.fail { border-left-color: var(--err); }
-
-.case-list summary {
-  display: grid;
-  grid-template-columns: 40px 132px minmax(0, 1fr);
-  gap: var(--sp-2);
-  align-items: baseline;
-  padding: 8px 10px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.case-list summary::-webkit-details-marker { display: none; }
-.case-list summary:hover { background: var(--panel); }
-
-.case-state {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--fw-strong);
-}
-
-.case-list .pass .case-state { color: var(--ok); }
-.case-list .fail .case-state { color: var(--err); }
-
-.case-list summary strong {
-  overflow: hidden;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: var(--fw-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.case-detail {
-  overflow: hidden;
-  color: var(--text-soft);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.case-body { padding: 0 10px 10px; }
-
-.score-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--sp-2); }
-
-.score-chips span {
-  padding: 2px 7px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-/* 意图用例的 metadata.cases：期望 → 预测，错的那条整行标红 */
-.intent-cases { display: grid; gap: 4px; }
-
-.intent-case {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--sp-2);
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  font-size: 12px;
-}
-
-.intent-case span {
-  overflow: hidden;
-  color: var(--text-soft);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.intent-case code { color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
-.intent-case.wrong { background: var(--err-soft); }
-.intent-case.wrong code { color: var(--err); }
-
-.case-line {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 6px;
-  margin: 0 0 5px;
-  color: var(--text-soft);
-  font-size: 12px;
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.case-line b {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: var(--fw-label);
-}
-
-.case-note {
-  margin: 0;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
 /* ===================== 响应式 ===================== */
 
 @media (max-width: 1120px) {
@@ -1408,8 +1188,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   .view-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
   .view-nav button { min-height: 36px; }
   .chat-layout { grid-template-columns: 1fr; }
-  .knowledge-layout, .evaluation-layout { grid-template-columns: 1fr; }
-  .page-knowledge, .page-evaluation { display: block; overflow: visible; }
+  .knowledge-layout { grid-template-columns: 1fr; }
+  .page-knowledge { display: block; overflow: visible; }
   .app-shell, .app-shell-chat { height: auto; overflow: visible; }
   body { overflow: auto; }
   .chat-sidebar { height: auto; overflow: visible; display: block; --sidebar-height: auto; }
@@ -1430,8 +1210,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   .composer-bottom button { width: 100%; }
   .search-line, .side-actions { flex-direction: column; }
   .search-line button { width: 100%; }
-  .evaluation-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .score-hero { grid-column: 1 / -1; }
   .skill-item { grid-template-columns: 8px minmax(0, 1fr) auto; }
   .skill-item > span:not(.skill-dot) { grid-column: 2 / -1; grid-row: 2; }
   .skill-item small { grid-column: 3; grid-row: 1; }
