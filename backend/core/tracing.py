@@ -65,7 +65,7 @@ def shutdown_tracing() -> None:
 class _TraceHandle:
     """一条进行中 trace：装 trace 级 meta、input/output 和根 observation，不装孩子也不装时间。
 
-    input/output 是 Langfuse 托管评测器唯一读得到的两个字段（它不遍历子节点）。
+    input/output 是评测器唯一读得到的两个字段（它不遍历子节点），所以 trace 级和根节点各写一份。
     """
 
     def __init__(self, root: Any, input: Any = None):
@@ -76,12 +76,13 @@ class _TraceHandle:
 
 
 class _Node:
-    """埋点方看到的节点把手。attrs 累加到节点退出时才推给 SDK ——
+    """埋点方看到的节点把手。attrs/output 累加到节点退出时才推给 SDK ——
     update(metadata=) 是整值覆盖，而 .end() 之后再也写不进去。"""
-    __slots__ = ("attrs",)
+    __slots__ = ("attrs", "output")
 
     def __init__(self, attrs: Dict[str, Any]):
         self.attrs: Dict[str, Any] = dict(attrs)
+        self.output: Any = None
 
 
 _trace: ContextVar[Optional[_TraceHandle]] = ContextVar("optiserve_trace", default=None)
@@ -111,6 +112,7 @@ def start_trace(trace_id: str, root_name: str = "request", input: Any = None) ->
         trace_context={"trace_id": seeded},
         name=root_name,
         as_type="span",
+        input=input,                # 根节点也留一份：按 observation 挂的评测器读不到 trace 级字段
         end_on_exit=False,          # 收尾留给我们：update_trace 必须赶在 end 之前
     ) as root:
         handle = _TraceHandle(root, input)
@@ -122,6 +124,7 @@ def start_trace(trace_id: str, root_name: str = "request", input: Any = None) ->
             raise
         finally:
             _trace.reset(token)
+            _push(root.update, output=handle.output)
             _push(root.update_trace, **_trace_fields(root_name, handle))
             _push(root.end)
 
@@ -138,9 +141,11 @@ def trace_scope(trace_id: str, root_name: str = "request") -> Generator[Any, Non
 
 
 @contextmanager
-def trace_span(name: str, **attrs: Any) -> Generator[Any, None, None]:
+def trace_span(name: str, input: Any = None, **attrs: Any) -> Generator[Any, None, None]:
     """在当前位置开一个节点；没 trace 时整段空转，埋点方不需要写判空。
 
+    input 走 SDK 的 Input 栏，其余 attrs 进 Metadata —— 评测器按 observation 挂时只认
+    Input/Output 两栏，塞进 Metadata 就等于没写。结果要跑出来才有的，退出前写 span.output。
     父节点由 OTel context 决定：contextvars 会被 asyncio.create_task 复制，
     所以 LangGraph 的并发分支各自挂在自己的链上，不会互相插错父节点。
     """
@@ -152,6 +157,7 @@ def trace_span(name: str, **attrs: Any) -> Generator[Any, None, None]:
     with _lf.start_as_current_observation(
         name=name,
         as_type=_as_type(name),
+        input=input,
         metadata=dict(attrs),
         end_on_exit=False,
     ) as obs:
@@ -163,7 +169,7 @@ def trace_span(name: str, **attrs: Any) -> Generator[Any, None, None]:
             error = ex
             raise
         finally:
-            _push(obs.update, metadata=dict(node.attrs),
+            _push(obs.update, metadata=dict(node.attrs), output=node.output,
                   **({"level": "ERROR", "status_message": str(error)} if error else {}))
             _push(obs.end)
 

@@ -311,8 +311,9 @@ def cliff_truncate(
 
 async def rewrite_node(state: RetrievalState, config) -> Dict[str, Any]:
     manager = _manager(config)
-    with trace_span("rag.rewrite", query=state["query"]):
+    with trace_span("rag.rewrite", input=state["query"]) as span:
         sub_queries = await manager.rewrite_query(state["query"], n=REWRITE_SUB_QUERIES)
+        span.output = sub_queries
     logger.info(f"查询改写: {state['query']!r} → {sub_queries}")
     stages = dict(state.get("stages") or {})
     stages["rewrite"] = len(sub_queries)
@@ -322,7 +323,7 @@ async def rewrite_node(state: RetrievalState, config) -> Dict[str, Any]:
 async def recall_node(state: RetrievalState, config) -> Dict[str, Any]:
     """混合索引召回：所有子查询并行，每个子查询内部再打稠密 + 稀疏两路索引。"""
     manager = _manager(config)
-    with trace_span("rag.recall", sub_queries=len(state["sub_queries"]), recall_k=state["recall_k"]):
+    with trace_span("rag.recall", input=state["sub_queries"], recall_k=state["recall_k"]):
         recalls = await asyncio.gather(*[
             manager.call(state["tool_name"], {"query": q, "top_k": state["recall_k"]}, state["context"])
             for q in state["sub_queries"]
@@ -381,9 +382,14 @@ async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
     candidates = [doc for doc, _ in state["coarse"]]
     texts = [manager.doc_text(doc, cfg.rerank_max_chars) for doc in candidates]
 
-    with trace_span("rag.rerank", candidates=len(candidates), rerank_max_chars=cfg.rerank_max_chars):
+    with trace_span(
+        "rag.rerank",
+        input={"query": state["query"], "documents": len(candidates)},
+        rerank_max_chars=cfg.rerank_max_chars,
+    ) as span:
         try:
-            scored = await manager.rerank(state["query"], texts, top_n=len(candidates))
+            # 只带回前 top_k 条：断崖截断本来就只在 top_k 窗口内比较相邻对，多回来的是死重
+            scored = await manager.rerank(state["query"], texts, top_n=min(state["top_k"], len(candidates)))
         except RerankError as ex:
             logger.error(f"精排失败: {ex}")
             return {
@@ -393,24 +399,28 @@ async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
                     stages=state.get("stages") or {},
                 )
             }
+        span.output = [{"candidate": index, "score": score} for index, score in scored]
 
     rrf_scores = [score for _, score in state["coarse"]]
     triples = [(candidates[index], rrf_scores[index], score) for index, score in scored]
     with trace_span(
         "rag.truncate",
+        input={"query": state["query"], "candidates": len(triples)},
         gap_abs=cfg.gap_abs,
         gap_ratio=cfg.gap_ratio,
         top_k=state["top_k"],
     ) as span:
         kept = cliff_truncate(triples, lambda triple: triple[2], state["top_k"], cfg)
-        span.attrs.update(returned=len(kept))
+        docs = [manager._with_scores(doc, rrf, rerank) for doc, rrf, rerank in kept]
+        span.output = docs
+        span.attrs.update(returned=len(docs))
 
     stages = dict(state.get("stages") or {})
-    stages.update(reranked=len(triples), returned=len(kept))
+    stages.update(reranked=len(triples), returned=len(docs))
     return {
         "result": ToolResult(
             success=True,
-            data=[manager._with_scores(doc, rrf, rerank) for doc, rrf, rerank in kept],
+            data=docs,
             tool_name=state["tool_name"],
             reranked=True,
             degraded=state["degraded"],

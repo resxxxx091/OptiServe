@@ -96,11 +96,13 @@ async def call_model(state: ToolLoopState, config: RunnableConfig) -> Dict[str, 
     messages = [SystemMessage(content=agent._build_system_prompt(state["req"])), *state["conversation"]]
     with trace_span(
         f"llm_round_{state['round'] + 1}",
+        input=[{"role": m.type, "content": message_text(m)} for m in messages],
         agent_type=agent.agent_type.value,
         model=agent._model,
         prompt_turns=len(messages),
-    ):
+    ) as span:
         resp = await chat.ainvoke(messages)
+        span.output = message_text(resp)
 
     # 参数解析失败的工具调用一并带进循环：走 _validate_tool_input 的同一失败分支，
     # 保证 assistant 的每个 tool_call 都有对应的 tool 消息回给端点。
@@ -171,14 +173,14 @@ async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, A
                     result = {"success": False, "error": error_text}
             if not error_text and isinstance(result, dict):
                 error_text = str(result.get("error", "") or "")
-            if span is not None:
-                span.attrs.update(
-                    success=call_success,
-                    result_success=result_success,
-                    error=error_text,
-                    cached=bool(result.get("cached")) if isinstance(result, dict) else False,
-                    reranked=bool(result.get("reranked")) if isinstance(result, dict) else False,
-                )
+            span.output = result
+            span.attrs.update(
+                success=call_success,
+                result_success=result_success,
+                error=error_text,
+                cached=bool(result.get("cached")) if isinstance(result, dict) else False,
+                reranked=bool(result.get("reranked")) if isinstance(result, dict) else False,
+            )
         conversation.append(ToolMessage(
             content=json.dumps(result, ensure_ascii=False),
             tool_call_id=tool_use_id,
@@ -240,15 +242,20 @@ async def recognize_intent(state: OrchestratorState, config: RunnableConfig) -> 
     """意图补做：/chat 已在 API 层识别过则空转。"""
     orc = _orchestrator(config)
     req = state["req"]
-    with trace_span("intent_recognition", intent=req.intent.value if req.intent else None) as span:
+    with trace_span(
+        "intent_recognition",
+        input=req.message,
+        intent=req.intent.value if req.intent else None,
+    ) as span:
         if req.intent is None:
             intent_result = await orc.recognize_intent(req.message, history=req.history)
             req.intent = intent_result.intent
             req.intent_confidence = intent_result.confidence
-            if span is not None:
-                span.attrs.update(source="graph", confidence=round(intent_result.confidence, 4))
-        elif span is not None:
+            span.attrs.update(source="graph", confidence=round(intent_result.confidence, 4))
+            span.output = intent_result.intent.value
+        else:
             span.attrs.update(source="api", confidence=round(req.intent_confidence, 4))
+            span.output = req.intent.value
     return {}
 
 
@@ -284,14 +291,14 @@ async def run_single(state: OrchestratorState, config: RunnableConfig) -> Dict[s
     req = state["req"]
     decision = state["decision"]
     # 执行主 Agent（含降级）
-    with trace_span(f"agent:{decision.primary_agent.value}", mode="single") as span:
+    with trace_span(f"agent:{decision.primary_agent.value}", input=req.message, mode="single") as span:
         response = await orc._execute(req, decision.primary_agent)
-        if span is not None:
-            span.attrs.update(
-                answered_by=response.agent_type.value,
-                success=response.success,
-                tools_used=list(response.tools_used),
-            )
+        span.output = response.content
+        span.attrs.update(
+            answered_by=response.agent_type.value,
+            success=response.success,
+            tools_used=list(response.tools_used),
+        )
     return {"result": orc._single_result(req, decision, response, state["t0"])}
 
 
@@ -317,15 +324,17 @@ def fan_out(state: OrchestratorState) -> List[Send]:
 
 async def run_agents(state: OrchestratorState, config: RunnableConfig) -> Dict[str, Any]:
     orc = _orchestrator(config)
-    with trace_span(f"agent:{state['want'].value}", mode="parallel", seq=state["seq"]) as span:
+    with trace_span(
+        f"agent:{state['want'].value}", input=state["req"].message, mode="parallel", seq=state["seq"],
+    ) as span:
         try:
             response = await orc._execute(state["req"], state["want"])
         except Exception:
             # 对应旧的 asyncio.gather(..., return_exceptions=True)：单条分支炸掉只少一条响应
             logger.exception("并行分支 %s 执行异常", state["want"])
             return {"responses": []}
-        if span is not None:
-            span.attrs.update(answered_by=response.agent_type.value, success=response.success)
+        span.output = response.content
+        span.attrs.update(answered_by=response.agent_type.value, success=response.success)
     return {"responses": [{"seq": state["seq"], "response": response}]}
 
 

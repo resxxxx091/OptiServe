@@ -352,8 +352,13 @@ class AgentOrchestrator:
     ) -> OrchestratorResult:
         """汇聚扇出的响应：compose 取 successful[0] 作「主 Agent」，故顺序必须确定。"""
         agent_types = decision.agent_types
-        with trace_span("compose", agents=[agent_type.value for agent_type in agent_types]):
+        with trace_span(
+            "compose",
+            input=req.message,
+            agents=[agent_type.value for agent_type in agent_types],
+        ) as span:
             combined = await self._composer.compose(req, responses)
+            span.output = combined
         result = OrchestratorResult(
             request_id=req.request_id,
             response=combined,

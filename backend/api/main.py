@@ -256,8 +256,6 @@ async def lifespan(app: FastAPI):
         for task in pending:
             task.cancel()
         if pending:
-            # cancel 只是投递取消，必须等任务真正解栈再关 Redis/Milvus 客户端，
-            # 否则任务会在已关闭的客户端上抛错
             await asyncio.gather(*pending, return_exceptions=True)
             logger.info(f"后台画像更新收尾超时，已取消 {len(pending)} 个")
 
@@ -270,14 +268,13 @@ async def lifespan(app: FastAPI):
 
 
 # ── FastAPI ───────────────────────────────────────────────────────────────────
-# HTTPBearer(auto_error=False) 只为在 openapi 里写出 securitySchemes，让 Swagger 的
-# Authorize 输入框可用；强制鉴权只在下述 middleware 一处（auto_error=True 会让缺 header
-# 的请求在依赖层先吃 403，与 middleware 的 401 撞成两套错误码）。
 app = FastAPI(
     title="OptiServe 智能客服",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
     dependencies=[Depends(HTTPBearer(auto_error=False))],
 )
 
@@ -443,8 +440,10 @@ async def chat(req: ChatRequest):
             conv_id = req.conv_id or str(uuid.uuid4())
 
             # 1. 读取记忆上下文
-            with trace_span("memory_read", user_id=req.user_id, conv_id=conv_id):
+            with trace_span("memory_read", input=req.message, user_id=req.user_id, conv_id=conv_id) as span:
                 mem_ctx = await _memory.get_context(req.user_id, conv_id, query=req.message)
+                full_context = mem_ctx.to_prompt_text()
+                span.output = full_context
 
             # 2. 构建编排请求（含对话历史，用于意图识别上下文）
             history = [
@@ -452,9 +451,9 @@ async def chat(req: ChatRequest):
                 for m in mem_ctx.recent_messages[-5:]
             ] if mem_ctx.recent_messages else None
 
-            with trace_span("intent_recognition", source="api"):
+            with trace_span("intent_recognition", input=req.message, source="api") as span:
                 intent_result = await _orchestrator.recognize_intent(req.message, history=history)
-            full_context = mem_ctx.to_prompt_text()
+                span.output = intent_result.intent.value
 
             orch_req = OrcReq(
                 message=req.message,
@@ -486,7 +485,7 @@ async def chat(req: ChatRequest):
                 tools_used=result.tools_used,
                 escalated=result.escalated,
             )
-            # 托管评测器只看 trace 的 input/output，最终回答必须写进来才有东西可评
+            # 最终回答写进 Output：评测器挂在根 observation 上时读的就是这一栏
             tr.output = result.response
 
             response = ChatResponse(
@@ -541,7 +540,7 @@ async def search(
     # 检索链路自己成一条 trace：五级漏斗的各级条数落在 rag.* 片段上
     with start_trace(str(uuid.uuid4())[:8], "search", input=query) as tr:
         result = await _tool_manager.search_pipeline("knowledge_search", query, top_k=top_k)
-        # 召回片段写进 output：平台侧评测器不遍历 rag.* 子节点，只看这一个字段
+        # 召回片段写进根节点 Output：评测器按节点挂，只认节点自己的 Input/Output 两栏
         tr.output = result.data
     return {
         "query": query,
