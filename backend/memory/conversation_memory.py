@@ -67,7 +67,6 @@ MEMORY_COLLECTIONS = (
 class MsgRole(Enum):
     USER      = "user"
     ASSISTANT = "assistant"
-    SYSTEM    = "system"
 
 
 @dataclass

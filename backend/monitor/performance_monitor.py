@@ -26,10 +26,8 @@ logger = logging.getLogger(__name__)
 # ── 数据结构 ──────────────────────────────────────────────────────────────────
 
 class Severity(Enum):
-    INFO     = "info"
     WARNING  = "warning"
     ERROR    = "error"
-    CRITICAL = "critical"
 
 
 @dataclass

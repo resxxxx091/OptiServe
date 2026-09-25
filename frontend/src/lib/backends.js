@@ -84,19 +84,12 @@ function normalizeChatResponse(raw) {
   const degradations = normalizeDegradations(raw.degradations)
   return {
     conversationId: raw.conv_id || '',
-    requestId: raw.request_id || '',
     response: raw.response || '',
     intent: raw.intent || 'other',
     agentType: raw.agent_type || '',
-    agentTypes: raw.agent_types || [],
     primaryAgent: raw.primary_agent || '',
-    supportingAgents: raw.supporting_agents || [],
-    toolsUsed: raw.tools_used || [],
     routingReason: raw.routing_reason || '',
     routingConfidence: Number(raw.routing_confidence ?? 0),
-    entities: raw.entities || {},
-    intentConfidence: Number(raw.intent_confidence ?? 0),
-    intentSourceScores: raw.intent_source_scores || {},
     escalated: Boolean(raw.escalated),
     latencyMs: Number(raw.latency_ms ?? 0),
     knowledgeUsed: Boolean(raw.knowledge_used),
@@ -108,9 +101,7 @@ function normalizeChatResponse(raw) {
 
 function normalizeSearchResponse(raw) {
   return {
-    query: raw.query || '',
     results: raw.results || [],
-    reranked: Boolean(raw.reranked),
     degraded: Boolean(raw.degraded),
     error: raw.error || '',
     stages: raw.stages || {}

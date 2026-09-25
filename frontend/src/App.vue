@@ -340,7 +340,7 @@ const docContent = ref('大促期间退款审核时间可能延长到 3-5 个工
 const messageList = ref(null)
 const sidebarRef = ref(null)
 const monitorData = ref({ agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] })
-const skillsData = ref({ count: 0, skills: [], errors: [] })
+const skillsData = ref({ skills: [] })
 const lastResponse = ref(null)
 const toast = ref('')
 let toastTimer
@@ -497,7 +497,7 @@ async function loadSkills(signal) {
   try {
     skillsData.value = await requestSkills(signal)
   } catch (error) {
-    if (!error.cancelled) skillsData.value = { count: 0, skills: [], errors: [] }
+    if (!error.cancelled) skillsData.value = { skills: [] }
   }
 }
 

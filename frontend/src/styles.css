@@ -47,12 +47,10 @@
   --err: #f26d6d;
   --err-soft: rgba(242, 109, 109, 0.13);
   --info: #58a6ff;
-  --info-soft: rgba(88, 166, 255, 0.12);
 
   /* ---- 状态点缀色：路由说明、检索结果等块的左边线 ---- */
   --kind-agent: #a371f7;
   --kind-rag: #e0a93b;
-  --kind-default: #4a5766;
 
   /* ---- 尺度 ---- */
   --radius-sm: 6px;
@@ -1026,8 +1024,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   padding-top: var(--sp-4);
   border-top: 1px solid var(--line);
 }
-
-.knowledge-view > .workspace-card { margin-top: var(--sp-3); }
 
 .search-line { display: flex; gap: var(--sp-2); }
 .search-line input { flex: 1; }

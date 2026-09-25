@@ -251,10 +251,6 @@ class MilvusStore:
         self._retry_at = 0.0
         self._warned = False
 
-    @property
-    def config(self) -> VectorStoreConfig:
-        return self._config
-
     async def ensure_ready(self) -> bool:
         """确保客户端可用且所有 collection 已就绪。"""
         if self._client is not None:
@@ -333,14 +329,6 @@ class AsyncEmbeddingClient:
     def __init__(self, config: VectorStoreConfig):
         self._config = config
         self._http: Optional[httpx.AsyncClient] = None
-
-    @property
-    def dim(self) -> int:
-        return EMBEDDING_DIM
-
-    @property
-    def model(self) -> str:
-        return self._config.embedding_model
 
     def _endpoint(self) -> str:
         base = sanitize_text(self._config.embedding_base_url).strip().rstrip("/")
@@ -509,10 +497,6 @@ class AsyncRerankClient:
     def __init__(self, config: VectorStoreConfig):
         self._config = config
         self._http: Optional[httpx.AsyncClient] = None
-
-    @property
-    def model(self) -> str:
-        return self._config.rerank_model
 
     def _endpoint(self) -> str:
         base = sanitize_text(self._config.rerank_base_url).strip().rstrip("/")

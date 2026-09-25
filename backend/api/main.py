@@ -272,9 +272,6 @@ app = FastAPI(
     title="OptiServe 智能客服",
     version="2.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
     dependencies=[Depends(HTTPBearer(auto_error=False))],
 )
 
@@ -376,11 +373,9 @@ async def reload_skills():
     return _skill_manager.summary()
 
 
-# 画像更新是后台任务，但没存引用的 task 可能被 GC 掉、异常也会静默消失，
-# 所以统一挂进这个集合，shutdown 时再等未完成的收尾。
+# 画像更新是后台任务，但没存引用的 task 可能被 GC 掉、异常也会静默消失，所以统一挂进这个集合，shutdown 时再等未完成的收尾。
 _profile_tasks: set = set()
-# 同一 user 同时只跑一个画像任务：否则并发请求各自「读旧画像→LLM 提炼→upsert」，
-# 后写覆盖先写，LLM / embedding 调用还会随请求数无界放大。
+# 同一 user 同时只跑一个画像任务：否则并发请求各自「读旧画像→LLM 提炼→upsert」，后写覆盖先写，LLM / embedding 调用还会随请求数无界放大。
 _profile_running_users: set = set()
 _profile_slots = asyncio.Semaphore(4)
 # 收尾窗口要盖得住画像链路最坏耗时（LLM 提炼 + embedding 预算 + upsert），5s 必超时
@@ -569,16 +564,6 @@ async def add_knowledge(body: BatchDocInput):
     批量导入文档到知识库。
 
     文档会自动切片（每片 500 字），向量由外部 embedding 服务（EMBEDDING_MODEL）生成后写入 Milvus。
-
-    示例请求体：
-    ```json
-    {
-      "documents": [
-        {"title": "退款政策", "content": "用户在购买后 7 天内可以申请无理由退款..."},
-        {"title": "配送说明", "content": "标准配送 3-5 个工作日..."}
-      ]
-    }
-    ```
     """
     if _kb is None:
         raise HTTPException(503, "知识库未初始化")
@@ -594,15 +579,7 @@ async def add_knowledge(body: BatchDocInput):
 
 @app.post("/knowledge/upload", tags=["知识库"], dependencies=[Depends(require_configured_token)])
 async def upload_knowledge(file: UploadFile = File(...)):
-    """
-    上传文件导入知识库。
-
-    支持格式：
-    - `.txt` / `.md`：整个文件作为一篇文档，文件名作为标题
-    - `.json`：JSON 数组格式 `[{"title": "...", "content": "..."}, ...]`
-
-    文件大小限制：10MB
-    """
+    """上传文件导入知识库。"""
     if _kb is None:
         raise HTTPException(503, "知识库未初始化")
 

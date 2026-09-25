@@ -48,8 +48,6 @@ class IntentResult:
     intent:     IntentCategory
     confidence: float
     entities:   Dict[str, List[str]]   # 从消息中提取的实体
-    reasoning:  str
-    latency_ms: float
     source_scores: Dict[str, float] = field(default_factory=dict)
 
 
@@ -83,7 +81,6 @@ def _cosine(a: List[float], b: List[float]) -> float:
 class IntentState(TypedDict, total=False):
     message: str
     history: Optional[List[Dict[str, str]]]
-    t0: float
     llm: Dict[str, Any]
     embedding: Dict[str, Any]
     pattern: Dict[str, Any]
@@ -114,8 +111,6 @@ async def vote_route(state: IntentState, config) -> Dict[str, Any]:
             intent=intent,
             confidence=confidence,
             entities=rec._extract_entities(state["message"]),
-            reasoning=state["llm"].get("reasoning", ""),
-            latency_ms=(time.monotonic() - state["t0"]) * 1000,
             source_scores=source_scores,
         )
     }
@@ -179,7 +174,7 @@ class IntentRecognizer:
             return self._cache[key]
 
         state = await INTENT_GRAPH.ainvoke(
-            {"message": message, "history": history, "t0": time.monotonic()},
+            {"message": message, "history": history},
             {"configurable": {"recognizer": self}},
         )
         result = state["result"]
@@ -190,9 +185,6 @@ class IntentRecognizer:
                 del self._cache[k]
         self._cache[key] = result
         return result
-
-    async def close(self) -> None:
-        await self._embedder.aclose()
 
     # ── 三路识别策略 ──────────────────────────────────────────────────────────
 

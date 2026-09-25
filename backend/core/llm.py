@@ -24,9 +24,8 @@ class LLMProvider:
         model: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-        timeout: Optional[float] = None,
     ) -> ChatDeepSeek:
-        key = (model, temperature, max_tokens, timeout)
+        key = (model, temperature, max_tokens)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -36,8 +35,6 @@ class LLMProvider:
             kwargs["temperature"] = temperature
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
-        if timeout is not None:
-            kwargs["timeout"] = timeout
 
         created = ChatDeepSeek(**kwargs)
         self._cache[key] = created
