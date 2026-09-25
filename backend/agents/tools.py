@@ -1,24 +1,21 @@
-"""Agent 工具定义与实现。
-
+"""
 所有 Agent 工具集中在这里，编排器只负责：
   1. 根据 Agent 类型暴露工具白名单
   2. 执行 LLM 返回的 tool_use
   3. 将工具结果回传给 LLM
 
-工具本身保持确定性、可测试，并明确区分：
+工具类型：
   - 当前请求分析
   - 技术排障建议
   - 账单字段核验
-  - 共享知识库 RAG
+  - RAG 知识库
   - 业务 Skill 规范正文的按需取回
-
-订单查询、退款执行、账单修改等需要真实业务系统授权的动作不在这里伪造。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional, TYPE_CHECKING, Union
+from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from agents.base import Request
@@ -56,6 +53,21 @@ def make_tool(
         },
         handler=handler,
     )
+
+
+def openai_tool_specs(specs: Iterable[AgentToolSpec]) -> List[Dict[str, Any]]:
+    """把 Agent 工具白名单转成 OpenAI function 格式（DeepSeek 走这套）。"""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": spec.name,
+                "description": spec.description,
+                "parameters": spec.input_schema,
+            },
+        }
+        for spec in specs
+    ]
 
 
 def inspect_request_context(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:

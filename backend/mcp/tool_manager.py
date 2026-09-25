@@ -34,6 +34,7 @@ import hashlib
 import inspect
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -42,7 +43,6 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypedDi
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 
-from agents.base import _env_float, _env_int
 from core.degradation import Dep, degrade
 from core.llm import LLMProvider, message_text
 from core.tracing import trace_span
@@ -194,16 +194,15 @@ class RetrievalConfig:
 
     @classmethod
     def from_env(cls) -> "RetrievalConfig":
-        # 调参键容错读取：手误（RETRIEVAL_RRF_K=6o）回落默认值并 warn，不拖垮启动闸门
         return cls(
-            rrf_k=_env_int("RETRIEVAL_RRF_K", 60),
-            recall_k=_env_int("RETRIEVAL_RECALL_K", 10),
-            coarse_n=_env_int("RETRIEVAL_COARSE_N", 20),
-            gap_abs=_env_float("RERANK_GAP_ABS", 0.5),
-            gap_ratio=_env_float("RERANK_GAP_RATIO", 0.25),
-            rerank_max_chars=_env_int("RERANK_MAX_CHARS", 1000),
-            rewrite_timeout_s=_env_float("RETRIEVAL_REWRITE_TIMEOUT_S", 15.0),
-            total_timeout_s=_env_float("RETRIEVAL_TOTAL_TIMEOUT_S", 45.0),
+            rrf_k=int(os.getenv("RETRIEVAL_RRF_K", "60")),
+            recall_k=int(os.getenv("RETRIEVAL_RECALL_K", "10")),
+            coarse_n=int(os.getenv("RETRIEVAL_COARSE_N", "20")),
+            gap_abs=float(os.getenv("RERANK_GAP_ABS", "0.5")),
+            gap_ratio=float(os.getenv("RERANK_GAP_RATIO", "0.25")),
+            rerank_max_chars=int(os.getenv("RERANK_MAX_CHARS", "1000")),
+            rewrite_timeout_s=float(os.getenv("RETRIEVAL_REWRITE_TIMEOUT_S", "15.0")),
+            total_timeout_s=float(os.getenv("RETRIEVAL_TOTAL_TIMEOUT_S", "45.0")),
         )
 
 

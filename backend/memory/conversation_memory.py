@@ -9,7 +9,6 @@
 关键设计：
   - 上下文构建时三级记忆并发读取后融合（CONTEXT_GRAPH），每一路各自带超时预算
   - 工作记忆超过阈值时自动压缩（LLM 摘要），压缩在后台任务里跑，不阻塞 /chat 响应
-  - 向量由外部 embedding 服务生成（EMBEDDING_* 环境变量），Milvus 只负责存取与检索
 """
 import asyncio
 import hashlib
@@ -306,13 +305,7 @@ class MemoryManager:
         return msgs
 
     async def _reset_working_memory(self, user_id: str, conv_id: str, keep: Sequence[Message]) -> None:
-        """把工作记忆裁剪到保留边界。
-
-        不能用「delete + 回填快照」收尾：LLM 摘要要跑几秒，期间 add_message
-        照常 lpush 新消息，delete 会把这些没被摘要覆盖的消息一并抹掉。
-        改为收尾时重读当前列表，以 keep 里最旧一条的 ts 为边界做 LTRIM——
-        压缩期间新写入的消息 ts 都晚于边界，天然落在保留段里。
-        """
+        """把工作记忆裁剪到保留边界。"""
         if not keep:
             return
         key = self._wm_key(user_id, conv_id)
@@ -430,13 +423,7 @@ class MemoryManager:
 
     @staticmethod
     def _key_part(value: Any) -> str:
-        """把 id 变成 Redis key 里安全的一段。
-
-        key 用 `:` 分段，而 user_id / conv_id 由调用方传入：含 `:` 的 id 会造出与别的
-        (user, conv) 完全同键的歧义 key（`("a:b","c")` 与 `("a","b:c")`）。这里只转义
-        `%` 与 `:` 两个字符，解码按左到右非重叠替换即可还原，因此映射是单射；
-        不用 urllib 的 quote 是为了让中文 id 在 redis-cli 里仍然可读。
-        """
+        """把 id 变成 Redis key 里安全的一段。"""
         return sanitize_text(value).replace("%", "%25").replace(":", "%3A")
 
     @classmethod

@@ -12,12 +12,6 @@ G1 —— 一次请求在编排层的控制流：
                                                ↘ single → END
 
     parallel 即 PARALLEL_GRAPH：prepare →(Send 扇出) run_agents → join → END
-
-两张图都不持有编排器实例：orchestrator 通过 config.configurable 注入，
-所以 set_shared_tools() 与 set_skill_manager() 的运行时热替换不需要重新编译。
-
-轮次上限用显式的 round 计数器而不是 recursion_limit：后者数的是 super-step、
-默认 1000、超了抛 GraphRecursionError，文案和异常类型都会变。
 """
 from __future__ import annotations
 
@@ -44,21 +38,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _env_int(name: str, default: int) -> int:
-    """读取可选整数配置；错误配置不应阻塞服务启动。
-
-    base.py 里有同名 helper，但 base 运行时 import 本模块，反向 import 会成环。
-    """
-    try:
-        return int(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        logger.warning("忽略非法整数配置 %s=%r", name, os.getenv(name))
-        return default
-
-
 # 一轮 = 一次 call_model。Agent 自行调 load_skill 取 Skill 正文会占掉一轮，
 # 所以默认 4 而不是 3。进程启动时读一次，不是热配置。
-MAX_TOOL_ROUNDS = _env_int("OPTISERVE_MAX_TOOL_ROUNDS", 4)
+MAX_TOOL_ROUNDS = int(os.getenv("OPTISERVE_MAX_TOOL_ROUNDS", "4"))
 
 
 class ToolLoopState(TypedDict, total=False):
@@ -126,11 +108,7 @@ def after_model(state: ToolLoopState) -> str:
 
 
 async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, Any]:
-    """执行模型本轮点名的工具。
-
-    不用 prebuilt.ToolNode：它会把异常改写成英文 status=error，
-    中文白名单文案与 tool_result 的 JSON 形状都会变。
-    """
+    """执行模型本轮点名的工具。"""
     agent, _, tools = _inject(config)
     req = state["req"]
     prefix = agent.agent_type.value
@@ -220,10 +198,7 @@ TOOL_LOOP_GRAPH = build_tool_loop_graph()
 
 
 class OrchestratorState(TypedDict, total=False):
-    """编排层状态。responses 用 add 归并器承接 Send 扇出的多路结果。
-
-    want / seq 只出现在 run_agents 这一条分支的输入里，节点不写回这两个通道。
-    """
+    """编排层状态。responses 用 add 归并器承接 Send 扇出的多路结果。"""
 
     req: Any
     t0: float

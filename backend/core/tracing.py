@@ -142,13 +142,7 @@ def trace_scope(trace_id: str, root_name: str = "request") -> Generator[Any, Non
 
 @contextmanager
 def trace_span(name: str, input: Any = None, **attrs: Any) -> Generator[Any, None, None]:
-    """在当前位置开一个节点；没 trace 时整段空转，埋点方不需要写判空。
-
-    input 走 SDK 的 Input 栏，其余 attrs 进 Metadata —— 评测器按 observation 挂时只认
-    Input/Output 两栏，塞进 Metadata 就等于没写。结果要跑出来才有的，退出前写 span.output。
-    父节点由 OTel context 决定：contextvars 会被 asyncio.create_task 复制，
-    所以 LangGraph 的并发分支各自挂在自己的链上，不会互相插错父节点。
-    """
+    """在当前位置开一个节点；没 trace 时整段空转，埋点方不需要写判空。"""
     if _lf is None or _trace.get() is None:
         # 这里不建 observation，否则后台任务那种空 Context 里会漏出一堆孤儿 trace
         yield _Node({})

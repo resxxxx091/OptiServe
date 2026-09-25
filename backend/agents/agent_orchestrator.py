@@ -1,8 +1,4 @@
 """
-亮点：多 Agent 路由与编排
-
-核心问题：多 Agent 情况下如何做 Routing？
-
 路由决策（_route_decision）：
   1. 意图映射表 —— _INTENT_AGENT 按 IntentCategory 唯一确定主处理 Agent，查不到降级 GeneralAgent
   2. 实体触发协作 —— error_code / amount 结构化实体拉入 Technical / Billing 作为 supporting Agent
@@ -36,8 +32,6 @@ from agents.base import (
     AgentType,
     BaseAgent,
     Request,
-    _env_float,
-    _env_int,
 )
 from agents.billing import BillingAgent
 from agents.general import GeneralAgent
@@ -52,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 # Monitor 回写的降权系数越过这条线，路由才在意图合法的候选里改选主 Agent。
 # 0.5 的取值来自 _routing_penalty：真要触发改选，该 Agent 早就在告警区里了。
-ROUTING_DEMOTE_THRESHOLD = _env_float("OPTISERVE_ROUTING_DEMOTE_THRESHOLD", 0.5)
+ROUTING_DEMOTE_THRESHOLD = float(os.getenv("OPTISERVE_ROUTING_DEMOTE_THRESHOLD", "0.5"))
 
 
 # ── 数据结构 ──────────────────────────────────────────────────────────────────
@@ -122,12 +116,7 @@ def handoff(req: Request) -> str:
 
 
 class ResponseComposer:
-    """多 Agent 汇总节点，统一主次、去重和输出边界。
-
-    不调用 SkillManager：它没有工具循环，单发一次 HumanMessage，给它看
-    「可加载清单」只会诱导它凭空声称「根据规范……」。业务规范由各 Agent 在
-    自己那一轮里按需加载，合并阶段只处理已经成形的结论。
-    """
+    """多 Agent 汇总节点，统一主次、去重和输出边界。"""
 
     def __init__(self, llm: LLMProvider, model: str):
         self._llm = llm
@@ -156,8 +145,8 @@ class ResponseComposer:
         try:
             chat = self._llm.chat_model(
                 model=self._model,
-                temperature=_env_float("OPTISERVE_COMPOSER_TEMPERATURE", 0.1),
-                max_tokens=_env_int("OPTISERVE_COMPOSER_MAX_TOKENS", 1000),
+                temperature=float(os.getenv("OPTISERVE_COMPOSER_TEMPERATURE", "0.1")),
+                max_tokens=int(os.getenv("OPTISERVE_COMPOSER_MAX_TOKENS", "1000")),
             )
             message = await chat.ainvoke([HumanMessage(content=prompt)])
             content = message_text(message).strip()
@@ -188,7 +177,7 @@ class AgentOrchestrator:
         self,
         api_key:  str,
         base_url: Optional[str] = None,
-        model:    str = "claude-3-5-sonnet-20241022",
+        model:    str = "deepseek-flash",
         skill_manager: Optional[Any] = None,
         rag_tool_manager: Optional[Any] = None,
     ):
@@ -215,10 +204,7 @@ class AgentOrchestrator:
         default_model: str,
         skill_manager: Optional[Any],
     ) -> BaseAgent:
-        """按角色创建 Agent，并允许用环境变量覆盖该角色的模型。
-
-        排障/账单/订单可用更强模型，通用接待可用更快模型。
-        """
+        """按角色创建 Agent，并允许用环境变量覆盖该角色的模型。"""
         profile = agent_cls.profile
         env_name = f"OPTISERVE_{agent_cls.agent_type.value.upper()}_MODEL"
         model = os.getenv(env_name, "").strip() or profile.model
@@ -263,7 +249,7 @@ class AgentOrchestrator:
         hinted = self._skill_manager.hinted_for(req.message, primary_agent.value if primary_agent else None)
         if hinted:
             logger.warning(
-                "命中 Skill 提示但未加载: agent=%s hinted=%s request_id=%s",
+                "关键词命中 Skill 提示但未加载: agent=%s hinted=%s request_id=%s",
                 primary_agent.value if primary_agent else "unknown",
                 [skill.name for skill in hinted],
                 req.request_id,
@@ -431,16 +417,7 @@ class AgentOrchestrator:
         )
 
     def _apply_demotion(self, req: Request, decision: RoutingDecision) -> RoutingDecision:
-        """Monitor 回写的降权系数越线时，在意图合法的候选里改选主 Agent。
-
-        查表（_route_decision）先给出它一直会给的答案，改判只发生在这之后一步：
-        主 Agent 的 penalty >= ROUTING_DEMOTE_THRESHOLD → 同样越线的辅助 Agent 一并剔除，
-        再从剩下的辅助 Agent 里选新主，一个都不健康就回落到 GENERAL。GENERAL 是地板、
-        自身永不参与降权判定，否则改判没有终点。
-        reason 按新决策整条重建（不是只在尾巴上追加），否则字符串里的 primary 会跟
-        真正的 primary_agent 自相矛盾；改判痕迹留在 demoted_from，事件留在 route span，
-        所以闭环的证据在 route span 与响应体里都读得出来，而不只是 /monitor 的一个数字。
-        """
+        """Monitor 回写的降权系数越线时，在意图合法的候选里改选主 Agent。"""
         primary = decision.primary_agent
         penalty = self._type_penalty(primary)
         if primary is AgentType.GENERAL or penalty < ROUTING_DEMOTE_THRESHOLD:
@@ -497,10 +474,7 @@ class AgentOrchestrator:
         )
 
     def _best_agent(self, agent_type: AgentType) -> Optional[BaseAgent]:
-        """
-        性能路由：从同类 Agent 中选 routing_score() 最高的。
-        这是"基于在线表现动态调整路由"的核心。
-        """
+        """性能路由：从同类 Agent 中选 routing_score() 最高的。"""
         agents = self._pool.get(agent_type, [])
         if not agents:
             return None
@@ -550,11 +524,7 @@ class AgentOrchestrator:
         return result
 
     def routing_weights(self) -> Dict[str, Any]:
-        """当前生效的路由权重：每类 Agent 的降权系数、改判阈值、是否已越线。
-
-        Monitor 每轮回写的就是这些 penalty，所以「超阈值 → 降权 → 回写」这条链
-        在 /monitor 与 /health 上直接读得出来，不用翻日志。
-        """
+        """当前生效的路由权重：每类 Agent 的降权系数、改判阈值、是否已越线。"""
         return {
             "demote_threshold": ROUTING_DEMOTE_THRESHOLD,
             "agents": {
@@ -567,11 +537,7 @@ class AgentOrchestrator:
         }
 
     def update_routing_penalties(self, penalties: Dict[str, float]) -> None:
-        """
-        接收 Monitor 的在线表现反馈，动态调整路由惩罚项。
-
-        penalties 的 key 使用 get_stats() 中的 agent key，例如 technical_0。
-        """
+        """接收 Monitor 的在线表现反馈，动态调整路由惩罚项。"""
         for agent_type, agents in self._pool.items():
             for i, agent in enumerate(agents):
                 key = f"{agent_type.value}_{i}"

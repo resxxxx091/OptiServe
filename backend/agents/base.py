@@ -14,8 +14,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from agents.graph import TOOL_LOOP_GRAPH
-from agents.tool_adapter import openai_tool_specs
-from agents.tools import AgentToolSpec, build_skill_tools
+from agents.tools import AgentToolSpec, build_skill_tools, openai_tool_specs
 from core.degradation import Dep, degrade
 from core.intent_recognizer import IntentCategory
 from core.llm import LLMProvider
@@ -45,27 +44,9 @@ class AgentProfile:
     max_tokens: int = 1024
 
 
-def _env_float(name: str, default: float) -> float:
-    """读取可选浮点配置；错误配置不应阻塞服务启动。"""
-    try:
-        return float(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        logger.warning("忽略非法浮点配置 %s=%r", name, os.getenv(name))
-        return default
-
-
-def _env_int(name: str, default: int) -> int:
-    """读取可选整数配置；错误配置不应阻塞服务启动。"""
-    try:
-        return int(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        logger.warning("忽略非法整数配置 %s=%r", name, os.getenv(name))
-        return default
-
-
 # 单个 Agent 跑完一次工具循环的总预算。轮数上限（MAX_TOOL_ROUNDS）管得住"绕太多圈"，
 # 管不住"某一圈里模型迟迟不返包"——那一跳没有自己的时限，只能靠这层封顶。
-AGENT_LOOP_TIMEOUT_S = _env_float("OPTISERVE_AGENT_LOOP_TIMEOUT_S", 90.0)
+AGENT_LOOP_TIMEOUT_S = float(os.getenv("OPTISERVE_AGENT_LOOP_TIMEOUT_S", "90.0"))
 
 
 @dataclass
@@ -89,10 +70,6 @@ class AgentStats:
         latency_score = 1.0 / (1.0 + self.avg_ms / 1000)
         base_score = self.success_rate * 0.7 + latency_score * 0.3
         return base_score * max(0.0, 1.0 - self.monitor_penalty)
-
-
-class ToolRoundsExhausted(RuntimeError):
-    """G2 跑满轮数。消息与旧版裸 RuntimeError 一致。"""
 
 
 @dataclass
@@ -147,8 +124,6 @@ class BaseAgent:
     def get_tools(self) -> Dict[str, AgentToolSpec]:
         """返回该角色真实可调用的工具白名单。"""
         tools = dict(self._shared_tools)
-        # 晚绑定 self._skill_manager：共享表会被 api 启动后期的 set_shared_tools
-        # 整体替换抹掉，且热加载换引用后这里每次都现取。
         tools.update(build_skill_tools(lambda: self._skill_manager, self.agent_type.value))
         return tools
 
@@ -184,11 +159,7 @@ class BaseAgent:
             )
 
     async def _call_llm(self, req: Request) -> Tuple[str, List[str]]:
-        """跑 G2 工具子图；agent/chat/工具表按次注入，图只在导入时编译一次。
-
-        返回 (正文, tools_used)。不在实例属性上暂存：Agent 是池化共享
-        实例，并发请求交错时 A 的响应会带上 B 的工具名。
-        """
+        """跑 G2 工具子图；agent/chat/工具表按次注入，图只在导入时编译一次。"""
         tools = self.get_tools()
         chat = self._chat if not tools else self._chat.bind_tools(openai_tool_specs(tools.values()))
         try:
@@ -207,7 +178,7 @@ class BaseAgent:
             )
             raise
         if state["exhausted"]:
-            raise ToolRoundsExhausted(f"{self.agent_type.value} 工具调用超过最大轮数")
+            raise RuntimeError(f"{self.agent_type.value} 工具调用超过最大轮数")
         return state["text"], list(state["tools_used"])
 
     def _context_turns(self, req: Request) -> List[str]:
