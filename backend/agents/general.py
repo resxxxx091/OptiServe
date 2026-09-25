@@ -1,7 +1,7 @@
 from typing import Dict
 
 from agents.base import AgentProfile, AgentType, BaseAgent
-from agents.tools import AgentToolSpec, general_tools
+from tools.agent_tools import AgentToolSpec, general_tools
 
 
 class GeneralAgent(BaseAgent):

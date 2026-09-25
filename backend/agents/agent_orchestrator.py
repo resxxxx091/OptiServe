@@ -23,10 +23,6 @@ from typing import Any, Dict, List, Optional
 from langchain_core.messages import HumanMessage
 
 from agents.graph import ORCHESTRATION_GRAPH
-from agents.tools import (
-    AgentToolSpec,
-    build_shared_rag_tools,
-)
 from agents.base import (
     AgentResponse,
     AgentType,
@@ -41,6 +37,7 @@ from core.degradation import Dep, degrade
 from core.intent_recognizer import IntentCategory, IntentRecognizer
 from core.llm import LLMProvider, message_text
 from core.tracing import add_event, trace_scope, trace_span
+from tools.agent_tools import AgentToolSpec
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +176,6 @@ class AgentOrchestrator:
         base_url: Optional[str] = None,
         model:    str = "deepseek-flash",
         skill_manager: Optional[Any] = None,
-        rag_tool_manager: Optional[Any] = None,
     ):
         llm = LLMProvider(api_key, base_url)
 
@@ -195,7 +191,6 @@ class AgentOrchestrator:
             AgentType.BILLING: [self._make_agent(BillingAgent, llm, model, skill_manager)],
             AgentType.ORDER:     [self._make_agent(OrderAgent, llm, model, skill_manager)],
         }
-        self.set_shared_tools(build_shared_rag_tools(rag_tool_manager))
 
     @staticmethod
     def _make_agent(

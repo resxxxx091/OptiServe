@@ -14,10 +14,10 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from agents.graph import TOOL_LOOP_GRAPH
-from agents.tools import AgentToolSpec, build_skill_tools, openai_tool_specs
 from core.degradation import Dep, degrade
 from core.intent_recognizer import IntentCategory
 from core.llm import LLMProvider
+from tools.agent_tools import AgentToolSpec, build_skill_tools, openai_tool_specs
 
 logger = logging.getLogger(__name__)
 

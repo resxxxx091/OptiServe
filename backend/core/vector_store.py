@@ -2,7 +2,7 @@
 向量层共享组件：Milvus 异步客户端 + 外部 embedding（稠密 + 稀疏）+ 外部 reranker + collection 脚手架。
 
 Milvus 只负责向量的存取与检索，不生成向量，所以向量必须由调用方产出。这里把几件共用的事
-收敛到一处，供 memory/conversation_memory.py 与 mcp/knowledge_base.py 复用：
+收敛到一处，供 memory/conversation_memory.py 与 tools/knowledge_base.py 复用：
 
   1. AsyncEmbeddingClient —— OpenAI 兼容 /v1/embeddings 的异步客户端（httpx 原生异步），
      同一次请求可以拿回稠密向量和 bge-m3 的词表稀疏向量

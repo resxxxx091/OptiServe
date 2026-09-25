@@ -57,6 +57,7 @@ def _api_token() -> str:
 _orchestrator = None
 _memory       = None
 _tool_manager = None
+_retrieval    = None
 _monitor      = None
 _skill_manager = None
 _kb           = None
@@ -122,15 +123,19 @@ async def _probe_redis(redis_url: str) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _orchestrator, _memory, _tool_manager, _monitor, _skill_manager, _kb, _rerank_client
+    global _orchestrator, _memory, _tool_manager, _retrieval, _monitor, _skill_manager, _kb, _rerank_client
 
-    from agents.agent_orchestrator import AgentOrchestrator, build_shared_rag_tools
+    from agents.agent_orchestrator import AgentOrchestrator
     from core.vector_store import VectorStoreConfig
-    from mcp.knowledge_base import KnowledgeBase
-    from mcp.tool_manager import MCPToolManager, Tool
     from memory.conversation_memory import MemoryManager
     from monitor.performance_monitor import PerformanceMonitor
     from core.skill_loader import SkillManager
+    from tools.knowledge_base import (
+        KnowledgeBase,
+        RetrievalPipeline,
+        build_shared_rag_tools,
+    )
+    from tools.tool_manager import ToolRegistry
 
     cfg = _llm_cfg()
     logger.info(f"model: {cfg['model']}  base_url: {cfg['base_url']}")
@@ -173,14 +178,9 @@ async def lifespan(app: FastAPI):
     )
     _memory = memory
 
-    # MCP 工具管理器 + RAG 知识库
+    # 工具注册表 + RAG 知识库
     _rerank_client = AsyncRerankClient(vector_cfg)
-    _tool_manager = MCPToolManager(
-        api_key=cfg["api_key"],
-        base_url=cfg["base_url"],
-        model=cfg["model"],
-        rerank_client=_rerank_client,
-    )
+    _tool_manager = ToolRegistry()
     kb = KnowledgeBase(vector_config=vector_cfg)
     _kb = kb
 
@@ -194,35 +194,16 @@ async def lifespan(app: FastAPI):
 
     await _gate(Dep.MILVUS, probe_milvus())
 
-    def knowledge_fallback(
-        params: Dict[str, Any], context: Optional[Dict[str, Any]], error: str
-    ):
-        query = params.get("query", "")
-        return [{
-            "title": "知识库降级结果",
-            "content": f"知识库暂时不可用，未能完成对“{query}”的混合索引检索。请稍后重试。",
-            "score": 0.0,
-            "fallback": True,
-            "error": error,
-        }]
-
-    _tool_manager.register(Tool(
-        name="knowledge_search",
-        # 单次调用 = 一个查询的混合索引双路召回；融合与精排在检索图里，不在这里
-        description="搜索 RAG 知识库",
-        handler=kb.search_handler,
-        schema={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "top_k": {"type": "integer", "description": "每路索引各取多少条候选"},
-            },
-            "required": ["query"],
-        },
-        cache_ttl=300.0,
-        fallback=knowledge_fallback,
-    ))
-    _orchestrator.set_shared_tools(build_shared_rag_tools(_tool_manager))
+    # 检索链回到注册表走外壳：召回那一跳吃缓存、熔断与统计
+    _retrieval = RetrievalPipeline(
+        registry=_tool_manager,
+        api_key=cfg["api_key"],
+        base_url=cfg["base_url"],
+        model=cfg["model"],
+        rerank_client=_rerank_client,
+    )
+    _tool_manager.register(kb.search_tool())
+    _orchestrator.set_shared_tools(build_shared_rag_tools(_retrieval))
 
     # 性能监控
     _monitor = PerformanceMonitor(
@@ -530,11 +511,11 @@ async def search(
 
     `stages` 给出各级条数，用来定位"答案是在哪一级丢掉的"。
     """
-    if _tool_manager is None:
+    if _retrieval is None:
         raise HTTPException(503, "服务未就绪")
     # 检索链路自己成一条 trace：五级漏斗的各级条数落在 rag.* 片段上
     with start_trace(str(uuid.uuid4())[:8], "search", input=query) as tr:
-        result = await _tool_manager.search_pipeline("knowledge_search", query, top_k=top_k)
+        result = await _retrieval.search(query, top_k=top_k)
         # 召回片段写进根节点 Output：评测器按节点挂，只认节点自己的 Input/Output 两栏
         tr.output = result.data
     return {

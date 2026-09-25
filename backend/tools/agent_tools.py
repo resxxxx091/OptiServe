@@ -1,5 +1,5 @@
 """
-所有 Agent 工具集中在这里，编排器只负责：
+Agent 侧工具契约与不查外部系统的确定性工具，编排器只负责：
   1. 根据 Agent 类型暴露工具白名单
   2. 执行 LLM 返回的 tool_use
   3. 将工具结果回传给 LLM
@@ -8,7 +8,6 @@
   - 当前请求分析
   - 技术排障建议
   - 账单字段核验
-  - RAG 知识库
   - 业务 Skill 规范正文的按需取回
 """
 
@@ -170,56 +169,6 @@ def compare_amounts(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
         "amount_b": second,
         "difference": round(first - second, 2),
         "interpretation": "仅表示金额差值，不代表重复扣款或退款结论",
-    }
-
-
-def build_shared_rag_tools(tool_manager: Any) -> Dict[str, AgentToolSpec]:
-    """构建所有 Agent 可共享的 RAG 工具。"""
-
-    async def search_knowledge_base(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-        query = str(args.get("query") or req.message or "").strip()
-        # top_k 来自 LLM 生成的参数，注入类输入能给出任意大数，检索侧钳住
-        top_k = max(1, min(20, int(args.get("top_k", 5) or 5)))
-        if not query:
-            return {"success": False, "error": "query 不能为空", "results": []}
-        if tool_manager is None:
-            return {"success": False, "error": "RAG 工具未初始化", "results": []}
-
-        result = await tool_manager.search_pipeline(
-            "knowledge_search",
-            query,
-            top_k=top_k,
-        )
-        if not getattr(result, "success", False):
-            return {
-                "success": False,
-                "query": query,
-                "error": getattr(result, "error", "知识库检索失败"),
-                "results": [],
-                "reranked": False,
-                "degraded": bool(getattr(result, "degraded", False)),
-            }
-
-        return {
-            "success": True,
-            "query": query,
-            "top_k": top_k,
-            "results": result.data,
-            "reranked": bool(getattr(result, "reranked", False)),
-            "degraded": bool(getattr(result, "degraded", False)),
-        }
-
-    return {
-        "search_knowledge_base": make_tool(
-            "search_knowledge_base",
-            "检索知识库并返回最相关的文档片段。",
-            {
-                "query": {"type": "string", "description": "用户问题或检索关键词"},
-                "top_k": {"type": "integer", "description": "返回结果条数"},
-            },
-            search_knowledge_base,
-            required=["query"],
-        )
     }
 
 
