@@ -40,6 +40,7 @@ from core.degradation import Dep, degrade
 from core.llm import LLMProvider, message_text
 from core.tracing import trace_span
 from core.vector_store import (
+    BM25_ANALYZER_PARAMS,
     VECTOR_FIELD,
     AsyncEmbeddingClient,
     AsyncRerankClient,
@@ -65,24 +66,28 @@ KNOWLEDGE_SEARCH_TOOL = "knowledge_search"
 KNOWLEDGE_COLLECTIONS = (
     CollectionSpec(
         name="knowledge_base",
-        description="OptiServe RAG 知识库（稠密 + 稀疏混合索引）",
+        description="OptiServe RAG 知识库（稠密向量 + BM25 词法混合索引）",
         fields=[
             FieldSchema("title", DataType.VARCHAR, max_length=512),
-            FieldSchema("content", DataType.VARCHAR, max_length=65535),
+            # content 同时是 BM25 的输入，所以分析器开在这个字段上
+            FieldSchema(
+                "content", DataType.VARCHAR, max_length=65535,
+                enable_analyzer=True, analyzer_params=BM25_ANALYZER_PARAMS,
+            ),
             FieldSchema("chunk_index", DataType.INT64),
             FieldSchema("total_chunks", DataType.INT64),
         ],
-        # 混合索引的第二路：外部 bge-m3 生成的词表稀疏向量，索引度量 IP
-        sparse_fields=("sparse_vector",),
+        # 混合索引的第二路：库内 BM25 function 从 content 生成词频稀疏向量，索引度量 BM25
+        bm25=("content", "sparse_vector"),
     ),
 )
 
 
 class KnowledgeBase:
-    """基于 Milvus 混合索引的 RAG 知识库（向量由外部 embedding 服务生成）。"""
+    """基于 Milvus 混合索引的 RAG 知识库：稠密向量来自外部 embedding 服务，词法向量在库内由 BM25 function 生成。"""
 
     COLLECTION_NAME = "knowledge_base"
-    SPARSE_FIELD = "sparse_vector"
+    SPARSE_FIELD = "sparse_vector"  # BM25 function 的输出字段，写入时不给值、检索时传原文
     CHUNK_SIZE = 500
     # 单路召回条数上限：RRF 是排名融合，两路各取一份即可，再多只是浪费 ANN 打分
     MAX_RECALL_PER_PATH = 50
@@ -113,9 +118,9 @@ class KnowledgeBase:
         批量导入文档到知识库。
 
         documents 格式: [{"title": "...", "content": "..."}, ...]
-        长文档会自动切片（每片 500 字），稠密 + 稀疏两路向量批量生成后按确定性主键 upsert，
-        同一份内容重复导入会覆盖而不是堆积。混合索引要求两路向量同批写入，
-        所以 embedding 服务必须同时给得出稀疏那一路，否则整批导入直接抛错。
+        长文档会自动切片（每片 500 字），稠密向量批量生成后按确定性主键 upsert，
+        同一份内容重复导入会覆盖而不是堆积。词法那一路不写在 rows 里 ——
+        content 一进去，Milvus 的 BM25 function 就自己把它切成词频稀疏向量。
         """
         rows: List[Dict[str, Any]] = []
         chunks: List[str] = []
@@ -142,26 +147,26 @@ class KnowledgeBase:
         if client is None:
             raise VectorStoreError("Milvus 不可用，知识库写入失败")
 
-        vectors = await self._embedder.embed_documents_hybrid(chunks)
+        vectors = await self._embedder.embed_documents(chunks)
         await client.upsert(
             collection_name=self.COLLECTION_NAME,
             data=[
-                dict(row, vector=dense, **{self.SPARSE_FIELD: sparse})
-                for row, (dense, sparse) in zip(rows, vectors)
+                dict(row, vector=dense)
+                for row, dense in zip(rows, vectors)
             ],
         )
-        logger.info(f"知识库导入 {len(rows)} 个文档片段（稠密 + 稀疏双向量）")
+        logger.info(f"知识库导入 {len(rows)} 个文档片段（稠密向量 + 库内 BM25 词法向量）")
         return len(rows)
 
     async def recall_async(self, query: str, limit: int = 5) -> Dict[str, List[Dict[str, Any]]]:
         """
-        混合索引召回：一次 query 编码，稠密与稀疏两路 ANN 并行检索。
+        混合索引召回：稠密那路先把 query 编码，词法那路直接把原文交给库，两路 ANN 并行。
 
         返回 {"dense": [...], "sparse": [...]} 两份**各自有序**的列表 —— 这里刻意不融合，
         RRF 要在上层把「多个子查询 × 两路索引」共 2N 份排名一起融合，
         在这一层就合并掉的话排名信息就只剩一份了。
 
-        稠密路是 COSINE，distance 即相似度（越大越相关）；稀疏路是 IP，分数没有距离含义。
+        稠密路是 COSINE，distance 即相似度（越大越相关）；词法路是 BM25 分数，无界正数、没有距离含义。
         """
         query_text = sanitize_text(query).strip()
         if not query_text or limit <= 0:
@@ -172,7 +177,7 @@ class KnowledgeBase:
             raise VectorStoreError("Milvus 不可用，知识库检索失败")
 
         per_path = min(limit, self.MAX_RECALL_PER_PATH)
-        dense_vector, sparse_vector = await self._embedder.embed_query_hybrid(query_text)
+        dense_vector = await self._embedder.embed_query(query_text)
         dense_hits, sparse_hits = await asyncio.gather(
             client.search(
                 collection_name=self.COLLECTION_NAME,
@@ -184,7 +189,8 @@ class KnowledgeBase:
             ),
             client.search(
                 collection_name=self.COLLECTION_NAME,
-                data=[sparse_vector],
+                # BM25 function 的输出字段吃原文：分词与算分都在库内，这里不再产向量
+                data=[query_text],
                 anns_field=self.SPARSE_FIELD,
                 limit=per_path,
                 filter="",

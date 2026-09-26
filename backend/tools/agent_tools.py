@@ -176,11 +176,7 @@ def build_skill_tools(
     get_manager: Callable[[], Any],
     agent_type: Optional[str] = None,
 ) -> Dict[str, AgentToolSpec]:
-    """构建 Skill 渐进式披露工具。
-
-    get_manager 是取值函数而非管理器本身：Agent 实例是池化共享的，热加载会换掉
-    引用，每次调用现取才能跟着 set_skill_manager 与 SkillManager.load() 生效。
-    """
+    """构建 Skill。"""
 
     def load_skill(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
         manager = get_manager()

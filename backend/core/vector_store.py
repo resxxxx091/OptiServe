@@ -1,15 +1,12 @@
 """
-向量层共享组件：Milvus 异步客户端 + 外部 embedding（稠密 + 稀疏）+ 外部 reranker + collection 脚手架。
+向量层共享组件：Milvus 异步客户端 + 外部 embedding（稠密）+ 外部 reranker + collection 脚手架。
 
-Milvus 只负责向量的存取与检索，不生成向量，所以向量必须由调用方产出。这里把几件共用的事
-收敛到一处，供 memory/conversation_memory.py 与 tools/knowledge_base.py 复用：
+稠密向量由外部服务产出，Milvus 只存取与检索；词法那一路相反，是 Milvus 用 BM25 function
+在库内自己生成、自己算分。
 
-  1. AsyncEmbeddingClient —— OpenAI 兼容 /v1/embeddings 的异步客户端（httpx 原生异步），
-     同一次请求可以拿回稠密向量和 bge-m3 的词表稀疏向量
+  1. AsyncEmbeddingClient —— OpenAI 兼容 /v1/embeddings 的异步客户端（httpx 原生异步），只产稠密向量
   2. AsyncRerankClient —— Cohere/Jina 风格 /v1/rerank 的异步客户端，精排用交叉编码器而不是 LLM
-  3. Milvus 的客户端创建、schema 构造、collection 建/校验（含稀疏向量字段的索引）
-
-Milvus 表达式没有参数绑定，凡是拼 user_id / conv_id 这类外部输入，都必须过 milvus_literal()。
+  3. Milvus 的客户端创建、schema 构造、collection 建/校验（含 BM25 function 与稀疏字段索引）
 """
 from __future__ import annotations
 
@@ -22,28 +19,24 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import httpx
-from pymilvus import AsyncMilvusClient, CollectionSchema, DataType, FieldSchema
-from pymilvus.client.types import ConsistencyLevel
+from pymilvus import (
+    AsyncMilvusClient,
+    CollectionSchema,
+    DataType,
+    FieldSchema,
+    Function,
+    FunctionType,
+)
 
 logger = logging.getLogger(__name__)
 
 VECTOR_FIELD = "vector"
-DEFAULT_METRIC_TYPE = "COSINE"
-# 稀疏向量是外部模型产出的词权重（不是 Milvus 自建 BM25 统计），相似度语义是内积，没有距离含义。
-SPARSE_METRIC_TYPE = "IP"
-# Strong：压缩后立刻检索、画像 upsert 后立刻读回都要求 read-your-writes；数据量很小，代价可忽略。
-DEFAULT_CONSISTENCY_LEVEL = ConsistencyLevel.Strong
 
-# 请求稀疏向量时塞进请求体的开关字段名（各家 OpenAI 兼容服务的私有扩展，如 SiliconFlow 的 return_sparse）
-SPARSE_REQUEST_PARAM = "return_sparse"
+BM25_FUNCTION_NAME = "bm25"
+BM25_ANALYZER_PARAMS = {"type": "chinese"}  # 服务端不认这个预设就换 {"tokenizer": "jieba"}
 
 # bge-m3 的稠密向量维度。换不同维度的 embedding 模型时改这里，并先删除已建好的 collection 重建。
 EMBEDDING_DIM = 1024
-
-# 一次响应里稀疏向量可能出现的键名与形状，各家 OpenAI 兼容服务的叫法不统一
-_SPARSE_KEYS = ("sparse", "sparse_embedding", "sparse_vector", "lexical_weights")
-
-SparseVector = Dict[int, float]
 
 
 class VectorStoreError(Exception):
@@ -73,7 +66,6 @@ class VectorStoreConfig:
     rerank_base_url: str = ""
     rerank_api_key: str = ""
     rerank_model: str = "bge-reranker-v2-m3"
-    # 定死在代码里：这一跳不是评测调参项，只要保证小于 RETRIEVAL_TOTAL_TIMEOUT_S 即可
     rerank_timeout_s: float = 10.0
 
     @classmethod
@@ -104,11 +96,7 @@ def sanitize_text(value: Any) -> str:
 
 
 def milvus_literal(value: Any) -> str:
-    """把值转成 Milvus 过滤表达式里的字符串字面量。
-
-    Milvus 表达式不支持参数绑定，user_id / conv_id 又来自 API 入参，
-    直接 f'user_id == "{v}"' 会被引号或反斜杠打断（甚至改变过滤语义），故统一走 json 转义。
-    """
+    """把值转成 Milvus 过滤表达式里的字符串字面量。"""
     return json.dumps(sanitize_text(value), ensure_ascii=False)
 
 
@@ -116,20 +104,25 @@ def build_schema(
     dim: int,
     extra_fields: Sequence[FieldSchema],
     description: str = "",
-    sparse_fields: Sequence[str] = (),
+    bm25: Optional[Tuple[str, str]] = None,
 ) -> CollectionSchema:
-    """构造 collection schema：主键 id + 稠密向量字段由这里统一加，业务字段由调用方传入。
-
-    sparse_fields 声明的稀疏向量字段也在这里补 —— 混合索引的两路向量必须同源建表，
-    让调用方各写一份 FieldSchema 只会造成形状漂移。
-    """
+    """构造 collection schema：主键 id + 稠密向量字段由这里统一加，业务字段由调用方传入。"""
     fields = [
         FieldSchema("id", DataType.VARCHAR, is_primary=True, max_length=64, description="主键"),
         FieldSchema(VECTOR_FIELD, DataType.FLOAT_VECTOR, dim=dim, description="外部 embedding 生成的稠密向量"),
-        *[FieldSchema(name, DataType.SPARSE_FLOAT_VECTOR) for name in sparse_fields],
         *extra_fields,
     ]
-    return CollectionSchema(fields, description=description, enable_dynamic_field=False)
+    functions = []
+    if bm25 is not None:
+        text_field, sparse_field = bm25
+        fields.append(FieldSchema(sparse_field, DataType.SPARSE_FLOAT_VECTOR, description="Milvus BM25 function 生成的词频稀疏向量"))
+        functions.append(Function(
+            BM25_FUNCTION_NAME,
+            FunctionType.BM25,
+            input_field_names=[text_field],
+            output_field_names=[sparse_field],
+        ))
+    return CollectionSchema(fields, description=description, enable_dynamic_field=False, functions=functions)
 
 
 def create_async_client(config: VectorStoreConfig) -> AsyncMilvusClient:
@@ -163,13 +156,9 @@ async def ensure_collection(
     collection_name: str,
     schema: CollectionSchema,
     dim: int,
-    sparse_fields: Sequence[str] = (),
+    bm25: Optional[Tuple[str, str]] = None,
 ) -> None:
-    """幂等建 collection：不存在则建（含索引并自动 load），已存在则校验维度与稀疏字段。
-
-    对不上时抛 VectorStoreError 而不是自动重建：换 embedding 模型（维度变）或补混合索引
-    （稀疏字段是建表后加不出来的）都必须人工确认后再删库，否则会静默丢掉已有向量数据。
-    """
+    """幂等建 collection：不存在则建（含索引并自动 load），已存在则校验维度与词法路配置。"""
     if await client.has_collection(collection_name):
         description = await client.describe_collection(collection_name)
         actual = vector_dim(description)
@@ -178,50 +167,49 @@ async def ensure_collection(
                 f"collection {collection_name} 的向量维度是 {actual}，"
                 f"与代码里的 EMBEDDING_DIM={dim} 不一致；换 embedding 模型后需先删除该 collection"
             )
-        missing = [name for name in sparse_fields if name not in field_names(description)]
-        if missing:
-            raise VectorStoreError(
-                f"collection {collection_name} 缺少稀疏向量字段 {missing}，混合索引检索不了这一路；"
-                f"SPARSE_FLOAT_VECTOR 无法在已存在的 collection 上追加，需先删除该 collection 让它重新播种"
-            )
+        if bm25 is not None:
+            _, sparse_field = bm25
+            if sparse_field not in field_names(description):
+                raise VectorStoreError(
+                    f"collection {collection_name} 缺少词法字段 {sparse_field}，检索不了 BM25 那一路；"
+                    f"SPARSE_FLOAT_VECTOR 无法在已存在的 collection 上追加，需先删除该 collection"
+                )
+            if not (description.get("functions") or []):
+                raise VectorStoreError(
+                    f"collection {collection_name} 有 {sparse_field} 字段但没有 BM25 function："
+                )
         await client.load_collection(collection_name)
         return
 
     index_params = client.prepare_index_params()
-    index_params.add_index(field_name=VECTOR_FIELD, index_type="AUTOINDEX", metric_type=DEFAULT_METRIC_TYPE)
-    for name in sparse_fields:
-        index_params.add_index(field_name=name, index_type="AUTOINDEX", metric_type=SPARSE_METRIC_TYPE)
+    index_params.add_index(field_name=VECTOR_FIELD, index_type="AUTOINDEX", metric_type="COSINE")
+    if bm25 is not None:
+        index_params.add_index(
+            field_name=bm25[1], index_type="AUTOINDEX", metric_type="BM25"
+        )
     await client.create_collection(
         collection_name=collection_name,
         schema=schema,
         index_params=index_params,
-        consistency_level=DEFAULT_CONSISTENCY_LEVEL,
     )
     logger.info(
         f"Milvus collection 已创建: {collection_name} "
-        f"(dim={dim}, metric={DEFAULT_METRIC_TYPE}, sparse={list(sparse_fields) or '无'})"
+        f"(dim={dim}, 稠密=COSINE, 词法={bm25[1] + '=BM25' if bm25 else '无'})"
     )
 
 
 @dataclass(frozen=True)
 class CollectionSpec:
-    """一个 collection 的业务字段定义（主键与向量字段由 build_schema 统一补）。
-
-    sparse_fields 声明该 collection 参与混合检索的稀疏向量字段名。
-    """
+    """一个 collection 的业务字段定义（主键与向量字段由 build_schema 统一补）。"""
 
     name: str
     description: str
     fields: Sequence[FieldSchema]
-    sparse_fields: Sequence[str] = ()
+    bm25: Optional[Tuple[str, str]] = None
 
 
 class MilvusStore:
-    """Milvus 客户端的懒加载外壳：首次调用才连，失败后按冷却期自动重试。
-
-    记忆与知识库各持有一个实例、各自管理自己的 collection；不可用时 client() 返回 None，
-    由调用方决定降级方式（检索返回空 / 写入丢弃 / 向上抛）。
-    """
+    """Milvus 客户端的懒加载外壳：首次调用才连，失败后按冷却期自动重试。"""
 
     RETRY_COOLDOWN_S = 30.0
 
@@ -252,9 +240,9 @@ class MilvusStore:
                     await ensure_collection(
                         client,
                         spec.name,
-                        build_schema(dim, spec.fields, spec.description, spec.sparse_fields),
+                        build_schema(dim, spec.fields, spec.description, spec.bm25),
                         dim=dim,
-                        sparse_fields=spec.sparse_fields,
+                        bm25=spec.bm25,
                     )
             except Exception as ex:
                 self._retry_at = time.monotonic() + self.RETRY_COOLDOWN_S
@@ -299,14 +287,7 @@ class MilvusStore:
 
 
 class AsyncEmbeddingClient:
-    """OpenAI 兼容 /v1/embeddings 的异步客户端。
-
-    向量由外部服务生成（`EMBEDDING_BASE_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL`），
-    走 httpx 原生异步，不再把同步客户端丢进线程池；一个实例持有一个连接池。
-
-    bge-m3 这类模型同时输出稠密向量和词表稀疏向量，`*_hybrid` 方法一次请求拿回两路，
-    稀疏那一路供混合索引的 BM25/关键词语义检索使用。
-    """
+    """OpenAI 兼容 /v1/embeddings 的异步客户端"""
 
     def __init__(self, config: VectorStoreConfig):
         self._config = config
@@ -329,12 +310,16 @@ class AsyncEmbeddingClient:
     async def embed_documents(
         self, texts: Sequence[str], timeout: Optional[float] = None
     ) -> List[List[float]]:
-        """批量生成稠密向量，内部按 embedding_batch 分批，返回顺序与入参一致。
+        """批量生成稠密向量，内部按 embedding_batch 分批。"""
+        cleaned = [sanitize_text(text) for text in texts]
+        if not cleaned:
+            return []
 
-        timeout 覆盖本批请求的超时；不传则用配置里的 embedding_timeout_s。
-        记忆层的三个调用点都传 EMBED_BUDGET_S，把单次 embedding 收在读/写预算里。
-        """
-        return [dense for dense, _ in await self._embed(texts, timeout, want_sparse=False)]
+        batch_size = self._config.embedding_batch
+        vectors: List[List[float]] = []
+        for start in range(0, len(cleaned), batch_size):
+            vectors.extend(await self._embed_batch(cleaned[start:start + batch_size], timeout))
+        return vectors
 
     async def embed_query(self, text: str, timeout: Optional[float] = None) -> List[float]:
         vectors = await self.embed_documents([text], timeout=timeout)
@@ -342,46 +327,9 @@ class AsyncEmbeddingClient:
             raise EmbeddingError("embedding 服务返回空结果")
         return vectors[0]
 
-    async def embed_documents_hybrid(
-        self, texts: Sequence[str]
-    ) -> List[Tuple[List[float], SparseVector]]:
-        """批量生成 (稠密向量, 稀疏向量)，顺序与入参一致。超时取配置的 embedding_timeout_s。
-
-        服务端不返回稀疏向量时抛 EmbeddingError —— 混合索引没有降级路径，
-        少一路就是检索结果不可信，宁可报错。
-        """
-        return await self._embed(texts, None, want_sparse=True)
-
-    async def embed_query_hybrid(
-        self, text: str
-    ) -> Tuple[List[float], SparseVector]:
-        vectors = await self.embed_documents_hybrid([text])
-        if not vectors:
-            raise EmbeddingError("embedding 服务返回空结果")
-        return vectors[0]
-
-    async def _embed(
-        self, texts: Sequence[str], timeout: Optional[float], want_sparse: bool
-    ) -> List[Tuple[List[float], SparseVector]]:
-        cleaned = [sanitize_text(text) for text in texts]
-        if not cleaned:
-            return []
-
-        batch_size = self._config.embedding_batch
-        pairs: List[Tuple[List[float], SparseVector]] = []
-        for start in range(0, len(cleaned), batch_size):
-            pairs.extend(
-                await self._embed_batch(cleaned[start:start + batch_size], timeout, want_sparse)
-            )
-        return pairs
-
-    async def _embed_batch(
-        self, batch: List[str], timeout: Optional[float], want_sparse: bool
-    ) -> List[Tuple[List[float], SparseVector]]:
+    async def _embed_batch(self, batch: List[str], timeout: Optional[float]) -> List[List[float]]:
         endpoint = self._endpoint()
         body: Dict[str, Any] = {"model": self._config.embedding_model, "input": batch}
-        if want_sparse:
-            body[SPARSE_REQUEST_PARAM] = True
         request = {
             "headers": {
                 "Authorization": f"Bearer {self._config.embedding_api_key}",
@@ -404,22 +352,16 @@ class AsyncEmbeddingClient:
         try:
             # 部分服务不保证顺序，按 index 还原
             ordered = sorted(items or [], key=lambda i: i.get("index", 0))
-            vectors = [(list(item["embedding"]), _parse_sparse(item) if want_sparse else {})
-                       for item in ordered]
+            vectors = [list(item["embedding"]) for item in ordered]
         except (TypeError, KeyError) as ex:
             raise EmbeddingError(f"embedding 响应缺少 data[].embedding: {payload}") from ex
 
         if len(vectors) != len(batch):
             raise EmbeddingError(f"embedding 返回 {len(vectors)} 条，期望 {len(batch)} 条")
-        for dense, sparse in vectors:
+        for dense in vectors:
             if len(dense) != EMBEDDING_DIM:
                 raise EmbeddingError(
                     f"embedding 维度 {len(dense)} 与代码里的 EMBEDDING_DIM={EMBEDDING_DIM} 不一致"
-                )
-            if want_sparse and not sparse:
-                raise EmbeddingError(
-                    f"embedding 服务未返回稀疏向量（model={self._config.embedding_model}）；"
-                    f"混合索引少一路不可信，若端点的开关字段名不同请改 core/vector_store.py 的 SPARSE_REQUEST_PARAM"
                 )
         return vectors
 
@@ -427,42 +369,6 @@ class AsyncEmbeddingClient:
         if self._http is not None:
             await self._http.aclose()
             self._http = None
-
-
-def _parse_sparse(item: Dict[str, Any]) -> SparseVector:
-    """从一条 embedding 响应里取出稀疏向量，归一成 Milvus 要的 {token_id: weight}。
-
-    稀疏那一路的键名各家叫法不一（sparse / sparse_embedding / lexical_weights），值可能是
-    {id: weight} 字典、{"indices": [...], "values": [...]} 双数组或 [[id, weight], ...]，
-    这里统一收下；零权重和非法项丢掉（稀疏向量体积直接取决于非零项数）。
-    """
-    for key in _SPARSE_KEYS:
-        raw = item.get(key)
-        if raw is None:
-            continue
-        pairs = _sparse_pairs(raw)
-        sparse: SparseVector = {}
-        for index, weight in pairs:
-            try:
-                token_id = int(index)
-                value = float(weight)
-            except (TypeError, ValueError):
-                continue
-            if value:
-                sparse[token_id] = sparse.get(token_id, 0.0) + value
-        if sparse:
-            return sparse
-    return {}
-
-
-def _sparse_pairs(raw: Any) -> Sequence[Any]:
-    if isinstance(raw, dict):
-        if isinstance(raw.get("indices"), list) and isinstance(raw.get("values"), list):
-            return list(zip(raw["indices"], raw["values"]))
-        return list(raw.items())
-    if isinstance(raw, list):
-        return [tuple(entry) for entry in raw if isinstance(entry, (list, tuple)) and len(entry) == 2]
-    return []
 
 
 class AsyncRerankClient:
