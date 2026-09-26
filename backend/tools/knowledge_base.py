@@ -17,7 +17,6 @@ import hashlib
 import json
 import logging
 import os
-import time
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -66,7 +65,7 @@ KNOWLEDGE_SEARCH_TOOL = "knowledge_search"
 KNOWLEDGE_COLLECTIONS = (
     CollectionSpec(
         name="knowledge_base",
-        description="OptiServe RAG 知识库（稠密向量 + BM25 词法混合索引）",
+        description="OptiServe RAG 知识库（稠密向量 + BM25 混合索引）",
         fields=[
             FieldSchema("title", DataType.VARCHAR, max_length=512),
             FieldSchema(
@@ -110,10 +109,7 @@ class KnowledgeBase:
         """
         批量导入文档到知识库。
 
-        documents 格式: [{"title": "...", "content": "..."}, ...]
-        长文档会自动切片（每片 500 字），稠密向量批量生成后按确定性主键 upsert，
-        同一份内容重复导入会覆盖而不是堆积。词法那一路不写在 rows 里 ——
-        content 一进去，Milvus 的 BM25 function 就自己把它切成词频稀疏向量。
+        长文档会自动切片（每片 500 字），同一份内容重复导入会覆盖而不是堆积。
         """
         rows: List[Dict[str, Any]] = []
         chunks: List[str] = []
@@ -152,15 +148,7 @@ class KnowledgeBase:
         return len(rows)
 
     async def recall_async(self, query: str, limit: int = 5) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        混合索引召回：稠密那路先把 query 编码，词法那路直接把原文交给库，两路 ANN 并行。
-
-        返回 {"dense": [...], "sparse": [...]} 两份**各自有序**的列表 —— 这里刻意不融合，
-        RRF 要在上层把「多个子查询 × 两路索引」共 2N 份排名一起融合，
-        在这一层就合并掉的话排名信息就只剩一份了。
-
-        稠密路是 COSINE，distance 即相似度（越大越相关）；词法路是 BM25 分数，无界正数、没有距离含义。
-        """
+        """异步混合索引召回。"""
         query_text = sanitize_text(query).strip()
         if not query_text or limit <= 0:
             return {"dense": [], "sparse": []}
@@ -213,11 +201,11 @@ class KnowledgeBase:
             })
         return items
 
-    async def doc_count_async(self) -> int:
-        """文档片段总数；Milvus 不可用时返回 0（启动统计不该因此失败）。"""
+    async def chunk_count(self) -> Optional[int]:
+        """片段总数；查不到时返回 None，把"确实为 0"和"没打听到"分开留给调用方判断。"""
         client = await self._store.client()
         if client is None:
-            return 0
+            return None
 
         try:
             rows = await client.query(
@@ -227,11 +215,15 @@ class KnowledgeBase:
             )
         except Exception as ex:
             logger.warning(f"统计知识库片段数失败: {ex}")
-            return 0
+            return None
 
         if not rows:
-            return 0
+            return None
         return int(rows[0].get("count(*)", 0))
+
+    async def doc_count_async(self) -> int:
+        """启动统计的保守读法：查不到当 0，统计不该因 Milvus 抖动而失败。"""
+        return await self.chunk_count() or 0
 
     # ── 检索工具 handler 与注册 ───────────────────────────────────────────────
 
@@ -239,12 +231,7 @@ class KnowledgeBase:
         self, params: Dict[str, Any]
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
-        作为检索工具的 handler 注册：一次调用 = 一个查询的混合索引双路召回。
-
-        这里只做到召回为止。RRF 粗排、Reranker 精排、断崖截断在本文件的检索图里做，
-        因为融合必须同时看见「改写出的多个子查询 × 两路索引」的全部排名，
-        在本层合并就等于把粗排的输入削成一份。
-        """
+        作为检索工具的 handler 注册：一次调用 = 一个查询的混合索引双路召回。"""
         query = params.get("query", "")
         # 内部检索链路会传 max(top_k, recall_k)，这里只挡直连调用塞进来的天文数字
         limit = max(1, min(500, int(params.get("top_k", 5) or 5)))
@@ -346,12 +333,7 @@ class RetrievalConfig:
 
 
 # ── G4：检索优化图 ────────────────────────────────────────────────────────────
-#
-#     START → rewrite → recall → rrf →(有候选) rerank → END
-#                                 ↘(候选空) give_up → END
-#
-# recall 节点内部保留 asyncio.gather：子查询是个位数量级，换成 Send 扇出就要在 state 里
-# 额外带下标才能复原"哪一路回来的"，收益为负。
+#     START → rewrite → recall → rrf → rerank → END
 
 class RetrievalState(TypedDict, total=False):
     tool_name: str
@@ -383,11 +365,7 @@ def _doc_key(item: Any) -> str:
 
 
 def _rank_lists(data: Any) -> List[Tuple[str, List[Any]]]:
-    """把一次召回的返回值拆成 (索引路, 有序列表)。
-
-    知识库 handler 返回 {"dense": [...], "sparse": [...]}；只返回普通列表的工具
-    当作单路处理，融合后仍保持原有顺序。
-    """
+    """把一次召回的返回值拆成 (索引路, 有序列表)。"""
     if isinstance(data, dict) and ("dense" in data or "sparse" in data):
         paths: List[Tuple[str, List[Any]]] = []
         for path in ("dense", "sparse"):
@@ -402,11 +380,7 @@ def _rank_lists(data: Any) -> List[Tuple[str, List[Any]]]:
 def rrf_fuse(
     lists: Sequence[Tuple[str, Sequence[Any]]], cfg: RetrievalConfig
 ) -> List[Tuple[Any, float]]:
-    """Reciprocal Rank Fusion：score(doc) = Σ 1 / (rrf_k + 该路名次)，各路等权。
-
-    只用名次不用分数，所以稠密的 COSINE 与稀疏的 IP 可以同台融合；
-    同一篇文档被越多路命中、且名次越靠前，累积分越高。
-    """
+    """Reciprocal Rank Fusion：score(doc) = Σ 1 / (rrf_k + 该路名次)，各路等权。"""
     scores: Dict[str, float] = {}
     docs: Dict[str, Any] = {}
     for _path, items in lists:
@@ -426,16 +400,7 @@ def cliff_truncate(
     top_k: int,
     cfg: RetrievalConfig,
 ) -> List[T]:
-    """断崖截断：在 top_k 之内找第一道落差超阈值的相邻对，在那里切断。
-
-    两个阈值同时存在是因为量纲与分布随模型而异：绝对落差管"整体都低分"，
-    相对落差管"前几名挤在一起、后面突然塌"。命中即停，只看第一道断崖。
-    窗口内没找到断层就按名次取满 top_k，不设保底篇数。
-
-    满足任一即切断，所以生效边界取决于分数量纲：精排返回的是 [0,1] 概率分，
-    head<=1 时 gap_ratio*head 恒不大于 gap_abs，切断点总是先由相对阈值命中，
-    gap_abs 只在未归一化的分数量纲下才可能单独起作用。
-    """
+    """断崖截断：在 top_k 之内找第一道落差超阈值的相邻对，在那里切断。"""
     keep = min(len(items), top_k)
     for index in range(keep - 1):
         head, tail = score_of(items[index]), score_of(items[index + 1])
@@ -498,25 +463,22 @@ async def rrf_node(state: RetrievalState, config) -> Dict[str, Any]:
     return {"coarse": fused, "degraded": degraded, "stages": stages}
 
 
-def after_rrf(state: RetrievalState) -> str:
-    return "rerank" if state["coarse"] else "give_up"
-
-
-async def give_up_node(state: RetrievalState, config) -> Dict[str, Any]:
-    return {
-        "result": ToolResult(
-            success=False, data=[],
-            error="所有子查询均无召回结果", degraded=state["degraded"],
-            stages=state.get("stages") or {},
-        )
-    }
-
-
 async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
     """Reranker 精排 + 断崖截断：精排失败即整次检索失败，不拿粗排顺序冒充精排结果。"""
     p = _pipeline(config)
     cfg = p.retrieval
     candidates = [doc for doc, _ in state["coarse"]]
+    if not candidates:
+        # 前置门挡掉空库与空查询后，只剩工具未注册、collection 被 release 这类配置态。
+        # 必须在这儿判失败：精排客户端对空 documents 直接返回 []，会伪装成"精排成功 0 条"。
+        return {
+            "result": ToolResult(
+                success=False, data=[],
+                error="知识库有内容，但本次检索无任何候选（各子查询召回为空或全部失败）",
+                degraded=state["degraded"],
+                stages=state.get("stages") or {},
+            )
+        }
     texts = [p.doc_text(doc, cfg.rerank_max_chars) for doc in candidates]
 
     with trace_span(
@@ -570,14 +532,12 @@ def build_retrieval_graph():
     graph.add_node("rewrite", rewrite_node)
     graph.add_node("recall", recall_node)
     graph.add_node("rrf", rrf_node)
-    graph.add_node("give_up", give_up_node)
     graph.add_node("rerank", rerank_node)
 
     graph.add_edge(START, "rewrite")
     graph.add_edge("rewrite", "recall")
     graph.add_edge("recall", "rrf")
-    graph.add_conditional_edges("rrf", after_rrf, {"rerank": "rerank", "give_up": "give_up"})
-    graph.add_edge("give_up", END)
+    graph.add_edge("rrf", "rerank")
     graph.add_edge("rerank", END)
     return graph.compile()
 
@@ -589,11 +549,7 @@ RETRIEVAL_GRAPH = build_retrieval_graph()
 
 class RetrievalPipeline:
     """
-    检索类工具的优化链路：问题改写 → 混合索引召回 → RRF 粗排 → Reranker 精排 → 断崖截断。
-
-    召回那一跳仍要回到 ToolRegistry 走外壳（缓存、熔断、统计都挂在那儿），
-    所以这里持有 registry 引用而不是自己直连知识库 handler。
-    """
+    检索类工具的优化链路：问题改写 → 混合索引召回 → RRF 粗排 → Reranker 精排 → 断崖截断。"""
 
     def __init__(
         self,
@@ -602,10 +558,12 @@ class RetrievalPipeline:
         base_url: Optional[str] = None,
         *,
         model: str,
+        kb: KnowledgeBase,
         rerank_client: Optional[AsyncRerankClient] = None,
         retrieval: Optional[RetrievalConfig] = None,
     ):
         self.registry  = registry
+        self._kb       = kb
         self._llm      = LLMProvider(api_key, base_url)
         self._model    = model
         self._rerank_client = rerank_client
@@ -615,18 +573,7 @@ class RetrievalPipeline:
 
     async def _rewrite(self, query: str, n: int = REWRITE_SUB_QUERIES) -> List[str]:
         """
-        用 LLM 将原始查询改写为 n 个不同角度的子查询。
-
-        目的：单一查询往往只能召回某一角度的文档，
-        多角度子查询并行检索后合并，显著提升召回率。
-
-        示例：
-          原始: "退款流程"
-          改写: ["如何申请退款", "退款需要多少天", "退款政策是什么"]
-
-        返回值含原始查询、放在第一位，且总条数不超过 n：多出来的子查询会原样变成
-        recall 节点多出来的 gather 分支，每支都吃一次工具超时和一次 embedding 配额。
-        """
+        用 LLM 将原始查询改写为 n 个不同角度的子查询。"""
         prompt = f"""
 将以下用户查询改写为 {n} 个不同角度的搜索子查询，用于检索知识库。
 要求：每个子查询角度不同，覆盖原始问题的不同方面。
@@ -658,15 +605,20 @@ class RetrievalPipeline:
         tool_name: str = KNOWLEDGE_SEARCH_TOOL,
     ) -> ToolResult:
         """
-        完整检索链路：问题改写 → 混合索引召回 → RRF 粗排 → Reranker 精排 → 断崖截断。
-
-        返回的 data 是最终留下的文档（条数可能少于 top_k —— 断崖在哪切就在哪停），
-        stages 里带各级条数，评测时可以直接看是哪一级把答案丢了。
-
-        整条链有总预算：单工具超时只管得住一次 handler 执行，五级串起来的最坏值是
-        各跳之和。超预算就判这次检索失败并打降级，而不是让上游一直等到 HTTP 层超时。
-        """
+        完整检索链路：问题改写 → 混合索引召回 → RRF 粗排 → Reranker 精排 → 断崖截断。"""
         cfg = self.retrieval
+        # 前置门：空查询或空库直接拒绝，避免浪费 LLM 调用。
+        refusal = None
+        if not query.strip():
+            refusal = "检索内容为空，未执行检索。"
+        elif await self._kb.chunk_count() == 0:
+            refusal = "知识库当前没有任何文档片段，未执行检索。请告知用户需先导入知识库文档。"
+        if refusal:
+            logger.info(f"检索前置门拦截: {refusal}")
+            return ToolResult(
+                success=False, data=[], error=refusal,
+                stages={"coarse": 0, "returned": 0},
+            )
         try:
             state = await asyncio.wait_for(
                 RETRIEVAL_GRAPH.ainvoke(
@@ -699,11 +651,7 @@ class RetrievalPipeline:
     async def rerank(
         self, query: str, texts: Sequence[str], top_n: Optional[int] = None
     ) -> List[Tuple[int, float]]:
-        """用交叉编码器给候选打相关性分，返回 [(原始下标, 分数)]，降序。
-
-        没有降级路径：精排客户端缺失或调用失败一律抛 RerankError，
-        由 rerank_node 判整次检索失败——用粗排顺序冒充精排结果，评测里看不出差别。
-        """
+        """用交叉编码器给候选打相关性分，返回 [(原始下标, 分数)]，降序。"""
         if self._rerank_client is None:
             raise RerankError("未配置精排服务（RERANK_BASE_URL），检索链路无法精排")
         return await self._rerank_client.rerank(query, texts, top_n=top_n)
@@ -723,11 +671,7 @@ class RetrievalPipeline:
 
     @staticmethod
     def _with_scores(doc: Any, rrf_score: float, rerank_score: float) -> Any:
-        """把粗排分与精排分写回文档。
-
-        `score` 一律以精分为准——下游拼 prompt 和评测读的都是这个字段；
-        召回阶段的向量相似度另存 `recall_score`，两路名次另存 `rrf_score`，便于分层归因。
-        """
+        """把粗排分与精排分写回文档。"""
         if not isinstance(doc, dict):
             return doc
         out = dict(doc)

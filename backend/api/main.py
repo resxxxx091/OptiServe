@@ -200,6 +200,7 @@ async def lifespan(app: FastAPI):
         api_key=cfg["api_key"],
         base_url=cfg["base_url"],
         model=cfg["model"],
+        kb=kb,
         rerank_client=_rerank_client,
     )
     _tool_manager.register(kb.search_tool())
