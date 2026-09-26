@@ -1,5 +1,5 @@
 """
-一、文档导入：将文本切片后写入 Milvus，每条切片同时落稠密向量和 bge-m3 稀疏向量
+一、文档导入：将文本切片后写入 Milvus，稠密向量由外部服务产出，词法向量由库内 BM25 function 生成
 
 二、检索优化链路 RETRIEVAL_GRAPH，五级串联：
   问题改写 → 混合索引召回 → RRF 粗排 → Reranker 精排 → 断崖截断
@@ -69,7 +69,6 @@ KNOWLEDGE_COLLECTIONS = (
         description="OptiServe RAG 知识库（稠密向量 + BM25 词法混合索引）",
         fields=[
             FieldSchema("title", DataType.VARCHAR, max_length=512),
-            # content 同时是 BM25 的输入，所以分析器开在这个字段上
             FieldSchema(
                 "content", DataType.VARCHAR, max_length=65535,
                 enable_analyzer=True, analyzer_params=BM25_ANALYZER_PARAMS,
@@ -77,7 +76,6 @@ KNOWLEDGE_COLLECTIONS = (
             FieldSchema("chunk_index", DataType.INT64),
             FieldSchema("total_chunks", DataType.INT64),
         ],
-        # 混合索引的第二路：库内 BM25 function 从 content 生成词频稀疏向量，索引度量 BM25
         bm25=("content", "sparse_vector"),
     ),
 )
@@ -99,13 +97,8 @@ class KnowledgeBase:
         self._store = MilvusStore(self._vector_config, KNOWLEDGE_COLLECTIONS)
 
     async def start(self) -> bool:
-        """确保 collection 已就绪；知识库为空时播种默认文档。失败返回 False，由启动闸门决定去留。"""
-        if not await self._store.ensure_ready():
-            return False
-
-        if await self.doc_count_async() == 0:
-            await self._load_default_docs()
-        return True
+        """确保 collection 已就绪。失败返回 False，由启动闸门决定去留；库空着不算失败。"""
+        return await self._store.ensure_ready()
 
     async def close(self) -> None:
         await self._store.aclose()
@@ -315,85 +308,6 @@ class KnowledgeBase:
             chunks.append(current)
 
         return chunks
-
-    async def _load_default_docs(self) -> None:
-        """导入默认知识库文档（客服场景常见问题）。"""
-        default_docs = [
-            {
-                "title": "退款政策",
-                "content": (
-                    "退款政策说明。"
-                    "用户在购买后 7 天内可以申请无理由退款。"
-                    "退款申请提交后，系统会在 1-3 个工作日内审核。"
-                    "审核通过后，款项将在 5-7 个工作日内退回原支付账户。"
-                    "如果商品已发货，需要先完成退货流程才能退款。"
-                    "退货运费由用户承担，除非是商品质量问题。"
-                    "超过 7 天但未超过 30 天的订单，需要提供商品质量问题的证据才能退款。"
-                ),
-            },
-            {
-                "title": "订单查询",
-                "content": (
-                    "订单查询指南。"
-                    "用户可以通过订单号查询订单状态。"
-                    "订单状态包括：待支付、已支付、已发货、运输中、已签收、已完成。"
-                    "如果订单显示已发货但超过 7 天未收到，可以联系客服申请查件。"
-                    "物流信息通常在发货后 24 小时内更新。"
-                    "如果订单显示异常，请提供订单号联系客服处理。"
-                ),
-            },
-            {
-                "title": "账户安全",
-                "content": (
-                    "账户安全说明。"
-                    "建议用户定期修改密码，密码长度至少 8 位，包含字母和数字。"
-                    "如果忘记密码，可以通过绑定的手机号或邮箱重置。"
-                    "发现账户异常登录时，系统会自动锁定账户并发送通知。"
-                    "用户可以在安全设置中开启两步验证，提高账户安全性。"
-                    "不要将密码分享给他人，客服人员不会索要用户密码。"
-                ),
-            },
-            {
-                "title": "技术故障排查",
-                "content": (
-                    "常见技术问题排查。"
-                    "应用崩溃：请尝试清除缓存后重启应用，如果问题持续请更新到最新版本。"
-                    "登录失败 401 错误：表示认证失败，请检查用户名密码是否正确，或尝试重置密码。"
-                    "页面加载慢：检查网络连接，尝试切换 WiFi 或移动数据。"
-                    "支付失败：确认银行卡余额充足，检查是否开启了网上支付功能。"
-                    "500 服务器错误：这是服务端问题，请稍后重试，如果持续出现请联系技术支持。"
-                ),
-            },
-            {
-                "title": "会员与积分",
-                "content": (
-                    "会员积分规则。"
-                    "每消费 1 元累积 1 积分。"
-                    "积分可以在下次购物时抵扣，100 积分 = 1 元。"
-                    "会员等级分为：普通会员、银卡会员（累计消费 1000 元）、金卡会员（累计消费 5000 元）。"
-                    "银卡会员享受 95 折优惠，金卡会员享受 9 折优惠。"
-                    "积分有效期为 1 年，过期自动清零。"
-                    "生日当月消费可获得双倍积分。"
-                ),
-            },
-            {
-                "title": "配送说明",
-                "content": (
-                    "配送服务说明。"
-                    "标准配送：3-5 个工作日送达，免运费（订单满 99 元）。"
-                    "加急配送：1-2 个工作日送达，运费 15 元。"
-                    "同城配送：当日达或次日达，运费 10 元。"
-                    "偏远地区可能需要额外 2-3 天。"
-                    "配送时间为每天 9:00-18:00，节假日可能延迟。"
-                    "如果需要修改收货地址，请在发货前联系客服。"
-                ),
-            },
-        ]
-        try:
-            await self.add_documents_async(default_docs)
-            logger.info(f"已导入默认知识库: {len(default_docs)} 篇文档")
-        except Exception as ex:
-            logger.warning(f"默认知识库播种失败: {ex}")
 
 
 # ── 检索链路参数 ──────────────────────────────────────────────────────────────
