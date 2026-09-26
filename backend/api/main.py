@@ -34,7 +34,7 @@ from core.degradation import (
     Dep, DepState, collect_degraded, set_status, statuses,
 )
 from core.tracing import init_tracing, shutdown_tracing, start_trace, trace_span
-from core.vector_store import AsyncRerankClient, _env_float, _env_int
+from core.vector_store import AsyncRerankClient
 
 if TYPE_CHECKING:
     # 只给类型检查器看，运行期这些类仍由 lifespan 内部按需导入
@@ -155,8 +155,8 @@ async def lifespan(app: FastAPI):
     skills_dir = os.getenv("OPTISERVE_SKILLS_DIR", str(pathlib.Path(_ROOT) / "skills"))
     _skill_manager = SkillManager(
         root_dir=skills_dir,
-        max_body_chars=_env_int("OPTISERVE_SKILL_MAX_BODY_CHARS", 6000),
-        max_index_chars=_env_int("OPTISERVE_SKILL_INDEX_MAX_CHARS", 1500),
+        max_body_chars=int(os.getenv("OPTISERVE_SKILL_MAX_BODY_CHARS", "6000")),
+        max_index_chars=int(os.getenv("OPTISERVE_SKILL_INDEX_MAX_CHARS", "1500")),
     )
     _skill_manager.load()
 
@@ -209,9 +209,9 @@ async def lifespan(app: FastAPI):
     _monitor = PerformanceMonitor(
         orchestrator=_orchestrator,
         tool_manager=_tool_manager,
-        interval_s=_env_float("MONITOR_INTERVAL", 10.0),
-        alert_max=_env_int("OPTISERVE_MONITOR_ALERT_MAX", 200),
-        suggestion_max=_env_int("OPTISERVE_MONITOR_SUGGESTION_MAX", 50),
+        interval_s=float(os.getenv("MONITOR_INTERVAL", "10.0")),
+        alert_max=int(os.getenv("OPTISERVE_MONITOR_ALERT_MAX", "200")),
+        suggestion_max=int(os.getenv("OPTISERVE_MONITOR_SUGGESTION_MAX", "50")),
     )
     await _monitor.start()
 
@@ -360,7 +360,7 @@ _profile_tasks: set = set()
 _profile_running_users: set = set()
 _profile_slots = asyncio.Semaphore(4)
 # 收尾窗口要盖得住画像链路最坏耗时（LLM 提炼 + embedding 预算 + upsert），5s 必超时
-PROFILE_DRAIN_TIMEOUT_S = _env_float("OPTISERVE_PROFILE_DRAIN_TIMEOUT_S", 15.0)
+PROFILE_DRAIN_TIMEOUT_S = float(os.getenv("OPTISERVE_PROFILE_DRAIN_TIMEOUT_S", "15.0"))
 
 
 async def _run_profile_update(memory: "MemoryManager", user_id: str, conv_id: str) -> None:

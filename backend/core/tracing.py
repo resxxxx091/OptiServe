@@ -63,13 +63,12 @@ def shutdown_tracing() -> None:
 # ── 一次请求的把手 ────────────────────────────────────────────────────────────
 
 class _TraceHandle:
-    """一条进行中 trace：装 trace 级 meta、input/output 和根 observation，不装孩子也不装时间。
+    """一条进行中 trace：装 trace 级 meta 和 input/output，不装孩子也不装时间。
 
     input/output 是评测器唯一读得到的两个字段（它不遍历子节点），所以 trace 级和根节点各写一份。
     """
 
-    def __init__(self, root: Any, input: Any = None):
-        self.root = root
+    def __init__(self, input: Any = None):
         self.input = input
         self.output: Any = None
         self.meta: Dict[str, Any] = {}
@@ -98,7 +97,7 @@ def start_trace(trace_id: str, root_name: str = "request", input: Any = None) ->
     """
     if _lf is None:
         # 仍然占住 ContextVar：trace_scope 靠它按身份复用同一条 trace
-        handle = _TraceHandle(None, input)
+        handle = _TraceHandle(input)
         token = _trace.set(handle)
         try:
             yield handle
@@ -115,7 +114,7 @@ def start_trace(trace_id: str, root_name: str = "request", input: Any = None) ->
         input=input,                # 根节点也留一份：按 observation 挂的评测器读不到 trace 级字段
         end_on_exit=False,          # 收尾留给我们：update_trace 必须赶在 end 之前
     ) as root:
-        handle = _TraceHandle(root, input)
+        handle = _TraceHandle(input)
         token = _trace.set(handle)
         try:
             yield handle

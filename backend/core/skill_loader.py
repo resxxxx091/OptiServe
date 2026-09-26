@@ -308,7 +308,7 @@ class SkillManager:
             dir_name=path.parent.name if path.name == "SKILL.md" else "",
             keywords=self._as_list(raw.get("keywords")),
             agents=[item.lower() for item in self._as_list(raw.get("agents"))],
-            enabled=self._as_bool(raw.get("enabled"), default=True),
+            enabled=self._as_bool(raw.get("enabled")),
         )
 
     def _load_text(self, path: Path) -> Optional[Skill]:
@@ -333,7 +333,7 @@ class SkillManager:
             dir_name=path.parent.name if is_dir_skill else "",
             keywords=self._as_list(meta.get("keywords")),
             agents=[item.lower() for item in self._as_list(meta.get("agents"))],
-            enabled=self._as_bool(meta.get("enabled"), default=True),
+            enabled=self._as_bool(meta.get("enabled")),
         )
 
     def _split_front_matter(self, raw: str) -> Tuple[Dict[str, Any], str]:
@@ -416,9 +416,9 @@ class SkillManager:
         ]
 
     @staticmethod
-    def _as_bool(value: Any, default: bool = False) -> bool:
+    def _as_bool(value: Any) -> bool:
         if value is None or value == "":
-            return default
+            return True
         if isinstance(value, bool):
             return value
         return str(value).strip().lower() not in {"0", "false", "no", "off", "disabled"}

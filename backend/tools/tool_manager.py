@@ -33,10 +33,7 @@ class CircuitState(Enum):
 class ToolResult:
     success:        bool
     data:           Any
-    tool_name:      str
     error:          Optional[str] = None
-    cached:         bool = False
-    latency_ms:     float = 0.0
     reranked:       bool = False   # data 是否经过 Reranker 精排
     degraded:       bool = False   # data 来自 fallback，不是真实 handler 的输出
     stages:         Dict[str, int] = field(default_factory=dict)  # 检索链路各级的条数
@@ -47,14 +44,13 @@ class ToolStats:
     """工具运行时统计，供 Monitor 读取。
 
     口径：total = 每次进入调用的请求（含熔断拒绝，不含"工具不存在"）；
-    success = 调用方拿到了可用结果（真实成功 + 降级救回）；
-    failed  = 调用方没拿到结果。所以 success + failed == total。
+    success = 调用方拿到了可用结果（真实成功 + 降级救回），
+    调用方没拿到结果的那些不单独记，看 total - success 就是。
     fallback 是 success 的子集，单独记才看得出"成功率 100% 但全靠兜底"。
     延迟均值只按 latency_samples 算，避免拒绝和缓存命中把 avg_ms 拉低。
     """
     total:              int = 0
     success:            int = 0
-    failed:             int = 0
     fallback:           int = 0
     total_latency_ms:   float = 0.0
     latency_samples:    int = 0     # 真正跑到 handler 的次数，延迟均值只按它算
@@ -130,11 +126,11 @@ class CircuitBreaker:
 class Tool:
     name:        str
     description: str
-    handler:     Callable                    # async (params, context) -> Any
+    handler:     Callable                    # async (params) -> Any
     schema:      Dict[str, Any]              # JSON Schema
     cache_ttl:   float = 0.0                 # 0 = 不缓存
     timeout_s:   float = 30.0
-    fallback:    Optional[Callable] = None    # sync/async (params, context, error) -> Any
+    fallback:    Optional[Callable] = None    # sync/async (params, error) -> Any
 
     # 运行时状态（不参与构造）
     stats:   ToolStats    = field(default_factory=ToolStats, init=False)
@@ -164,7 +160,6 @@ class ToolRegistry:
         self,
         name: str,
         params: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None,
     ) -> ToolResult:
         """
         调用工具，完整执行链：
@@ -172,7 +167,7 @@ class ToolRegistry:
         """
         tool = self._tools.get(name)
         if not tool:
-            return ToolResult(success=False, data=None, tool_name=name, error=f"工具不存在: {name}")
+            return ToolResult(success=False, data=None, error=f"工具不存在: {name}")
 
         tool.stats.total += 1
 
@@ -184,21 +179,19 @@ class ToolRegistry:
                 return ToolResult(
                     success=True,
                     data=cached,
-                    tool_name=name,
-                    cached=True,
                 )
 
         # 熔断检查
         if not tool.breaker.allow():
             error = f"工具熔断中: {name}，请稍后重试"
-            return await self._fallback_result(tool, params, context, error)
+            return await self._fallback_result(tool, params, error)
 
         t0 = time.monotonic()
         try:
             # 参数校验（根据 JSON Schema 的 required 和 properties.type）
             self._validate_params(tool, params)
 
-            data = await asyncio.wait_for(self._run_handler(tool, params, context), timeout=tool.timeout_s)
+            data = await asyncio.wait_for(self._run_handler(tool, params), timeout=tool.timeout_s)
             latency = (time.monotonic() - t0) * 1000
 
             tool.stats.success += 1
@@ -212,25 +205,24 @@ class ToolRegistry:
             if tool.cache_ttl > 0:
                 self._set_cache(name, params, data, tool.cache_ttl)
 
-            return ToolResult(success=True, data=data, tool_name=name, latency_ms=latency)
+            return ToolResult(success=True, data=data)
 
         except asyncio.TimeoutError:
             tool.stats.consecutive_fails += 1
             tool.breaker.record_failure()
             logger.error(f"工具超时: {name} ({tool.timeout_s}s)")
-            return await self._fallback_result(tool, params, context, "执行超时")
+            return await self._fallback_result(tool, params, "执行超时")
 
         except Exception as ex:
             tool.stats.consecutive_fails += 1
             tool.breaker.record_failure()
             logger.error(f"工具异常: {name} — {ex}")
-            return await self._fallback_result(tool, params, context, str(ex))
+            return await self._fallback_result(tool, params, str(ex))
 
     async def _fallback_result(
         self,
         tool: Tool,
         params: Dict[str, Any],
-        context: Optional[Dict[str, Any]],
         error: str,
     ) -> ToolResult:
         """
@@ -240,10 +232,9 @@ class ToolRegistry:
         degraded 标记——否则依赖全挂时成功率仍是 100%，监控看不出问题。
         """
         if tool.fallback is None:
-            tool.stats.failed += 1
-            return ToolResult(success=False, data=None, tool_name=tool.name, error=error)
+            return ToolResult(success=False, data=None, error=error)
         try:
-            data = tool.fallback(params, context, error)
+            data = tool.fallback(params, error)
             if asyncio.iscoroutine(data):
                 data = await data
             tool.stats.success += 1
@@ -252,20 +243,17 @@ class ToolRegistry:
             return ToolResult(
                 success=True,
                 data=data,
-                tool_name=tool.name,
                 error=error,
                 degraded=True,
             )
         except Exception as ex:
-            tool.stats.failed += 1
             logger.error(f"工具降级失败: {tool.name} — {ex}")
-            return ToolResult(success=False, data=None, tool_name=tool.name, error=f"{error}; fallback失败: {ex}")
+            return ToolResult(success=False, data=None, error=f"{error}; fallback失败: {ex}")
 
     async def _run_handler(
         self,
         tool: Tool,
         params: Dict[str, Any],
-        context: Optional[Dict[str, Any]],
     ) -> Any:
         """
         执行工具 handler。
@@ -274,8 +262,8 @@ class ToolRegistry:
         避免阻塞事件循环。
         """
         if inspect.iscoroutinefunction(tool.handler):
-            return await tool.handler(params, context)
-        result = await asyncio.to_thread(tool.handler, params, context)
+            return await tool.handler(params)
+        result = await asyncio.to_thread(tool.handler, params)
         # 如果 handler 返回的是 awaitable 对象（例如 asyncio.Future），则继续 await
         if inspect.isawaitable(result):
             return await result

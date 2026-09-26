@@ -156,7 +156,6 @@ async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, A
                 success=call_success,
                 result_success=result_success,
                 error=error_text,
-                cached=bool(result.get("cached")) if isinstance(result, dict) else False,
                 reranked=bool(result.get("reranked")) if isinstance(result, dict) else False,
             )
         conversation.append(ToolMessage(

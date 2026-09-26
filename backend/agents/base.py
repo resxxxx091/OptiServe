@@ -77,7 +77,6 @@ class AgentResponse:
     agent_type:  AgentType
     content:     str
     success:     bool
-    latency_ms:  float = 0.0
     escalate:    bool  = False   # 是否需要升级
     tools_used:  List[str] = field(default_factory=list)
 
@@ -143,7 +142,6 @@ class BaseAgent:
                 agent_type=self.agent_type,
                 content=content,
                 success=True,
-                latency_ms=ms,
                 escalate=escalate,
                 tools_used=list(tools_used),
             )
@@ -155,7 +153,6 @@ class BaseAgent:
                 agent_type=self.agent_type,
                 content="抱歉，处理您的请求时出现问题，请稍后重试。",
                 success=False,
-                latency_ms=ms,
             )
 
     async def _call_llm(self, req: Request) -> Tuple[str, List[str]]:

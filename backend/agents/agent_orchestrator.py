@@ -8,7 +8,7 @@
   - 有 supporting Agent 时由编排图的 parallel 节点扇出到 PARALLEL_GRAPH，结果经 ResponseComposer 合并后返回
 
 降级与升级：
-  - _best_agent 按 routing_score() 选最优实例；专属 Agent 失败时降级到 GeneralAgent
+  - 每种 AgentType 一个实例；专属 Agent 失败时降级到 GeneralAgent
   - Monitor 回写的 monitor_penalty 越过 ROUTING_DEMOTE_THRESHOLD 时，_apply_demotion
     在意图合法的候选里改选主 Agent（查表结果本身不动）
   - Agent 自检命中升级话术，或意图为转人工 → escalated=True
@@ -167,7 +167,7 @@ class AgentOrchestrator:
 
     路由决策见 _route_decision：意图映射表定主 Agent，结构化实体触发辅助 Agent；
     转人工意图走模块级 handoff()，不经过任何 Agent。
-    同类多实例时由 _best_agent 按 routing_score() 选最优，专属 Agent 失败降级到 GeneralAgent。
+    每种 AgentType 一个实例，专属 Agent 失败降级到 GeneralAgent。
     """
 
     def __init__(
@@ -184,12 +184,12 @@ class AgentOrchestrator:
         self._composer = ResponseComposer(llm, model)
         self._shared_tools: Dict[str, AgentToolSpec] = {}
 
-        # Agent 池：每种类型可有多个实例（水平扩展）
-        self._pool: Dict[AgentType, List[BaseAgent]] = {
-            AgentType.GENERAL: [self._make_agent(GeneralAgent, llm, model, skill_manager)],
-            AgentType.TECHNICAL: [self._make_agent(TechnicalAgent, llm, model, skill_manager)],
-            AgentType.BILLING: [self._make_agent(BillingAgent, llm, model, skill_manager)],
-            AgentType.ORDER:     [self._make_agent(OrderAgent, llm, model, skill_manager)],
+        # Agent 池：每种类型一个实例
+        self._pool: Dict[AgentType, BaseAgent] = {
+            AgentType.GENERAL:   self._make_agent(GeneralAgent, llm, model, skill_manager),
+            AgentType.TECHNICAL: self._make_agent(TechnicalAgent, llm, model, skill_manager),
+            AgentType.BILLING:   self._make_agent(BillingAgent, llm, model, skill_manager),
+            AgentType.ORDER:     self._make_agent(OrderAgent, llm, model, skill_manager),
         }
 
     @staticmethod
@@ -209,16 +209,14 @@ class AgentOrchestrator:
     def set_skill_manager(self, skill_manager: Optional[Any]) -> None:
         """更新 SkillManager 引用，供运行时重载或测试替换使用。"""
         self._skill_manager = skill_manager
-        for agents in self._pool.values():
-            for agent in agents:
-                agent._skill_manager = skill_manager
+        for agent in self._pool.values():
+            agent._skill_manager = skill_manager
 
     def set_shared_tools(self, tools: Optional[Dict[str, AgentToolSpec]]) -> None:
         """更新所有 Agent 共享的工具白名单。"""
         self._shared_tools = dict(tools or {})
-        for agents in self._pool.values():
-            for agent in agents:
-                agent.set_shared_tools(self._shared_tools)
+        for agent in self._pool.values():
+            agent.set_shared_tools(self._shared_tools)
 
     async def recognize_intent(
         self,
@@ -405,11 +403,8 @@ class AgentOrchestrator:
         return f"intent={intent}, primary={primary_agent.value}, supporting={support_text}"
 
     def _type_penalty(self, agent_type: AgentType) -> float:
-        """该类型实例里最重的一个 Monitor 降权系数。"""
-        return max(
-            (agent.stats.monitor_penalty for agent in self._pool.get(agent_type, [])),
-            default=0.0,
-        )
+        """该类型 Agent 的 Monitor 降权系数。"""
+        return self._pool[agent_type].stats.monitor_penalty
 
     def _apply_demotion(self, req: Request, decision: RoutingDecision) -> RoutingDecision:
         """Monitor 回写的降权系数越线时，在意图合法的候选里改选主 Agent。"""
@@ -468,55 +463,35 @@ class AgentOrchestrator:
             and (last.get("content") or "").strip() == CLARIFY_PROMPT
         )
 
-    def _best_agent(self, agent_type: AgentType) -> Optional[BaseAgent]:
-        """性能路由：从同类 Agent 中选 routing_score() 最高的。"""
-        agents = self._pool.get(agent_type, [])
-        if not agents:
-            return None
-        return max(agents, key=lambda a: a.stats.routing_score())
-
     async def _execute(self, req: Request, agent_type: AgentType) -> AgentResponse:
         """执行 Agent，失败时降级到 GeneralAgent。"""
-        agent = self._best_agent(agent_type)
-        if agent is None:
-            agent = self._best_agent(AgentType.GENERAL)
-        if agent is None:
-            return AgentResponse(
-                agent_type=AgentType.GENERAL,
-                content="服务暂时不可用，请稍后重试。",
-                success=False,
-            )
-
+        agent = self._pool[agent_type]
         response = await agent.handle(req)
 
         if not response.success and agent_type != AgentType.GENERAL:
             degrade(Dep.AGENT, "agent_fallback", f"{agent_type.value} 失败，降级到 GeneralAgent")
-            fallback = self._best_agent(AgentType.GENERAL)
-            if fallback:
-                response = await fallback.handle(req)
+            response = await self._pool[AgentType.GENERAL].handle(req)
 
         return response
 
     # ── 统计（供 Monitor 读取）────────────────────────────────────────────────
 
     def get_stats(self) -> Dict[str, Any]:
-        result = {}
-        for agent_type, agents in self._pool.items():
-            for i, agent in enumerate(agents):
-                key = f"{agent_type.value}_{i}"
-                result[key] = {
-                    "total":        agent.stats.total,
-                    "success_rate": round(agent.stats.success_rate, 3),
-                    "avg_ms":       round(agent.stats.avg_ms, 1),
-                    "monitor_penalty": round(agent.stats.monitor_penalty, 3),
-                    "routing_score": round(agent.stats.routing_score(), 3),
-                    "role": agent.profile.role,
-                    "workflow": list(agent.profile.workflow),
-                    "tool_scope": list(agent.profile.tool_scope),
-                    "available_tools": list(agent.get_tools()),
-                    "model": agent._model,
-                }
-        return result
+        return {
+            agent_type.value: {
+                "total":        agent.stats.total,
+                "success_rate": round(agent.stats.success_rate, 3),
+                "avg_ms":       round(agent.stats.avg_ms, 1),
+                "monitor_penalty": round(agent.stats.monitor_penalty, 3),
+                "routing_score": round(agent.stats.routing_score(), 3),
+                "role": agent.profile.role,
+                "workflow": list(agent.profile.workflow),
+                "tool_scope": list(agent.profile.tool_scope),
+                "available_tools": list(agent.get_tools()),
+                "model": agent._model,
+            }
+            for agent_type, agent in self._pool.items()
+        }
 
     def routing_weights(self) -> Dict[str, Any]:
         """当前生效的路由权重：每类 Agent 的降权系数、改判阈值、是否已越线。"""
@@ -533,8 +508,6 @@ class AgentOrchestrator:
 
     def update_routing_penalties(self, penalties: Dict[str, float]) -> None:
         """接收 Monitor 的在线表现反馈，动态调整路由惩罚项。"""
-        for agent_type, agents in self._pool.items():
-            for i, agent in enumerate(agents):
-                key = f"{agent_type.value}_{i}"
-                penalty = penalties.get(key, 0.0)
-                agent.stats.monitor_penalty = min(max(penalty, 0.0), 0.9)
+        for agent_type, agent in self._pool.items():
+            penalty = penalties.get(agent_type.value, 0.0)
+            agent.stats.monitor_penalty = min(max(penalty, 0.0), 0.9)

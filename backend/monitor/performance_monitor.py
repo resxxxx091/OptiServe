@@ -7,7 +7,7 @@
   1. 实时采集 —— 每隔 N 秒从 Orchestrator 和 ToolManager 拉取最新统计
   2. 异常检测 —— Z-score 统计方法，自动发现指标突变
   3. 路由反馈 —— 将 Agent 成功率/延迟写回 Orchestrator，
-     Orchestrator 的 _best_agent() 会据此动态调整路由权重
+     penalty 越线时 Orchestrator._apply_demotion 会改选主 Agent
   4. 优化建议 —— 基于规则生成可操作的优化建议（不是空话）
   5. 告警 —— 超阈值时记进告警列表并打日志
 """
@@ -45,7 +45,6 @@ class Alert:
 class Suggestion:
     """可操作的优化建议。"""
     title:       str
-    detail:      str
     action:      str    # 具体操作步骤
     priority:    int    # 1-10
 
@@ -97,9 +96,9 @@ class PerformanceMonitor:
     Agent 在线表现监控。
 
     与 Orchestrator 的联动：
-      Monitor 采集 → 发现某 Agent 成功率下降 →
-      Orchestrator.get_stats() 中该 Agent 的 routing_score 自动降低 →
-      _best_agent() 路由时自动绕开该 Agent
+      Monitor 采集 → 按成功率与延迟算出 penalty 回写 →
+      penalty 越过 ROUTING_DEMOTE_THRESHOLD 时 Orchestrator._apply_demotion
+      在意图合法的候选里改选主 Agent
 
     这就是"利用 Monitor 监控在线表现"的闭环。
     """
@@ -207,7 +206,6 @@ class PerformanceMonitor:
             if cf >= 3:
                 self._add_suggestion(Suggestion(
                     title=f"工具 {tool_name} 连续失败",
-                    detail=f"连续失败 {cf} 次，成功率 {sr:.1%}，平均延迟 {ms:.0f}ms，熔断状态: {s['circuit_state']}",
                     action="1. 检查工具依赖服务是否正常\n2. 查看错误日志\n3. 考虑增加超时时间或降级策略",
                     priority=9,
                 ))
@@ -218,8 +216,6 @@ class PerformanceMonitor:
                 if fr >= self.FALLBACK_RATE_MIN:
                     self._add_suggestion(Suggestion(
                         title=f"工具 {tool_name} 降级占比偏高",
-                        detail=f"{total} 次调用里 {s.get('fallback', 0)} 次由 fallback 返回（{fr:.1%}），"
-                               f"成功率 {sr:.1%} 是被兜底撑起来的",
                         action="1. 查 ToolResult.error 里的原始失败原因\n"
                                "2. 恢复真实 handler 的依赖（向量层/下游服务）\n"
                                "3. 兜底文案长期占高位会污染答案质量，需要设占比上限或告警升级",
@@ -285,13 +281,11 @@ class PerformanceMonitor:
             if s["success_rate"] < 0.85 and s["total"] > 10:
                 self._add_suggestion(Suggestion(
                     title=f"Agent {agent_key} 成功率偏低",
-                    detail=f"成功率 {s['success_rate']:.1%}，路由评分 {s['routing_score']:.3f}",
                     action=(
-                        "Orchestrator 已自动降低该 Agent 的路由权重：同类多实例时 _best_agent() 换实例，"
+                        "Orchestrator 已自动降低该 Agent 的路由权重："
                         "penalty 越过 ROUTING_DEMOTE_THRESHOLD 时路由直接改选意图合法的备选 Agent。\n"
                         "建议：1. 检查 system_prompt 是否需要优化\n"
-                        "      2. 检查该类型问题的复杂度是否超出 Agent 能力\n"
-                        "      3. 考虑增加同类型 Agent 实例"
+                        "      2. 检查该类型问题的复杂度是否超出 Agent 能力"
                     ),
                     priority=8,
                 ))

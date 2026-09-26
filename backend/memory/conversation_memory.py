@@ -136,7 +136,8 @@ class MemoryManager:
         vector_config:  Optional[VectorStoreConfig] = None,
         api_key:        str = "",
         base_url:       Optional[str] = None,
-        model:          str = "claude-3-5-sonnet-20241022",
+        *,
+        model:          str,
     ):
         self._llm    = LLMProvider(api_key, base_url)
         self._model  = model

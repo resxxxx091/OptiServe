@@ -51,7 +51,7 @@ class IntentResult:
     source_scores: Dict[str, float] = field(default_factory=dict)
 
 
-# ── Few-shot 模板（同时用于 LLM 示例和 Embedding 匹配）────────────────────────
+# ── 模板语料（Embedding 匹配用）───────────────────────────────────────────────
 _TEMPLATES: Dict[IntentCategory, List[str]] = {
     IntentCategory.COMPLAINT:  ["等了好几个小时！", "服务太差了！", "一直没人处理！"],
     IntentCategory.GREETING:   ["你好", "嗨，有人吗", "早上好"],
@@ -145,7 +145,8 @@ class IntentRecognizer:
         self,
         api_key: str,
         base_url: Optional[str] = None,
-        model: str = "claude-3-5-sonnet-20241022",
+        *,
+        model: str,
         confidence_threshold: float = 0.5,
         vector_config: Optional[VectorStoreConfig] = None,
     ):
@@ -193,14 +194,8 @@ class IntentRecognizer:
         message: str,
         history: Optional[List[Dict[str, str]]],
     ) -> Dict[str, Any]:
-        """策略 1：LLM 语义理解（Few-shot + 上下文）。"""
+        """策略 1：LLM 语义理解（示例写在 prompt 里 + 最近对话上下文）。"""
         message = self._clean_text(message)
-        # 构建 Few-shot 示例
-        examples = "\n".join(
-            f'  消息: "{t}" → 意图: {cat.value}'
-            for cat, tpls in _TEMPLATES.items()
-            for t in tpls[:1]  # 每类取 1 条，控制 prompt 长度
-        )
         # 最近 3 轮对话上下文
         ctx = ""
         if history:

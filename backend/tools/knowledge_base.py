@@ -237,7 +237,7 @@ class KnowledgeBase:
     # ── 检索工具 handler 与注册 ───────────────────────────────────────────────
 
     async def search_handler(
-        self, params: Dict[str, Any], context: Any
+        self, params: Dict[str, Any]
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         作为检索工具的 handler 注册：一次调用 = 一个查询的混合索引双路召回。
@@ -271,7 +271,7 @@ class KnowledgeBase:
 
     @staticmethod
     def _fallback(
-        params: Dict[str, Any], context: Any, error: str
+        params: Dict[str, Any], error: str
     ) -> List[Dict[str, Any]]:
         """Milvus 不可用时的降级结果：一条兜底文档，_rank_lists 把裸列表当单路召回，下游不用分支。"""
         query = params.get("query", "")
@@ -438,7 +438,6 @@ class RetrievalState(TypedDict, total=False):
     query: str
     top_k: int
     recall_k: int
-    context: Optional[Dict[str, Any]]
     sub_queries: List[str]
     recalls: List[Any]                                  # 每个子查询一个 ToolResult
     coarse: List[Tuple[Any, float]]                     # RRF 融合后的 (文档, 粗排分)
@@ -543,7 +542,7 @@ async def recall_node(state: RetrievalState, config) -> Dict[str, Any]:
     p = _pipeline(config)
     with trace_span("rag.recall", input=state["sub_queries"], recall_k=state["recall_k"]):
         recalls = await asyncio.gather(*[
-            p.registry.call(state["tool_name"], {"query": q, "top_k": state["recall_k"]}, state["context"])
+            p.registry.call(state["tool_name"], {"query": q, "top_k": state["recall_k"]})
             for q in state["sub_queries"]
         ], return_exceptions=True)
     return {"recalls": list(recalls)}
@@ -586,7 +585,7 @@ def after_rrf(state: RetrievalState) -> str:
 async def give_up_node(state: RetrievalState, config) -> Dict[str, Any]:
     return {
         "result": ToolResult(
-            success=False, data=[], tool_name=state["tool_name"],
+            success=False, data=[],
             error="所有子查询均无召回结果", degraded=state["degraded"],
             stages=state.get("stages") or {},
         )
@@ -612,7 +611,7 @@ async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
             logger.error(f"精排失败: {ex}")
             return {
                 "result": ToolResult(
-                    success=False, data=[], tool_name=state["tool_name"],
+                    success=False, data=[],
                     error=f"精排失败: {ex}", degraded=state["degraded"],
                     stages=state.get("stages") or {},
                 )
@@ -639,7 +638,6 @@ async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
         "result": ToolResult(
             success=True,
             data=docs,
-            tool_name=state["tool_name"],
             reranked=True,
             degraded=state["degraded"],
             stages=stages,
@@ -682,7 +680,8 @@ class RetrievalPipeline:
         registry: "ToolRegistry",
         api_key: str,
         base_url: Optional[str] = None,
-        model: str = "claude-3-5-sonnet-20241022",
+        *,
+        model: str,
         rerank_client: Optional[AsyncRerankClient] = None,
         retrieval: Optional[RetrievalConfig] = None,
     ):
@@ -737,7 +736,6 @@ class RetrievalPipeline:
         query: str,
         top_k: int = 5,
         tool_name: str = KNOWLEDGE_SEARCH_TOOL,
-        context: Optional[Dict[str, Any]] = None,
     ) -> ToolResult:
         """
         完整检索链路：问题改写 → 混合索引召回 → RRF 粗排 → Reranker 精排 → 断崖截断。
@@ -757,7 +755,6 @@ class RetrievalPipeline:
                         "query": query,
                         "top_k": top_k,
                         "recall_k": max(top_k, cfg.recall_k),
-                        "context": context,
                     },
                     {"configurable": {"pipeline": self}},
                 ),
@@ -772,7 +769,6 @@ class RetrievalPipeline:
             return ToolResult(
                 success=False,
                 data=[],
-                tool_name=tool_name,
                 error=f"检索超时：超过总预算 {cfg.total_timeout_s:g}s",
                 degraded=True,
             )

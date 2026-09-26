@@ -46,24 +46,6 @@ _SPARSE_KEYS = ("sparse", "sparse_embedding", "sparse_vector", "lexical_weights"
 SparseVector = Dict[int, float]
 
 
-def _env_float(name: str, default: float) -> float:
-    """读取可选浮点配置；错误配置不应阻塞服务启动。"""
-    try:
-        return float(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        logger.warning(f"忽略非法浮点配置 {name}={os.getenv(name)!r}")
-        return default
-
-
-def _env_int(name: str, default: int) -> int:
-    """读取可选整数配置；错误配置不应阻塞服务启动。"""
-    try:
-        return int(os.getenv(name, str(default)))
-    except (TypeError, ValueError):
-        logger.warning(f"忽略非法整数配置 {name}={os.getenv(name)!r}")
-        return default
-
-
 class VectorStoreError(Exception):
     """向量层不可用：Milvus 连不上、collection 维度不一致、embedding 调用失败等。"""
 
@@ -99,12 +81,12 @@ class VectorStoreConfig:
         return cls(
             milvus_uri=os.getenv("MILVUS_URI", "http://localhost:19530"),
             milvus_db_name=os.getenv("MILVUS_DB_NAME", "default"),
-            milvus_timeout_s=_env_float("MILVUS_TIMEOUT_S", 10.0),
+            milvus_timeout_s=float(os.getenv("MILVUS_TIMEOUT_S", "10.0")),
             embedding_base_url=os.getenv("EMBEDDING_BASE_URL", ""),
             embedding_api_key=os.getenv("EMBEDDING_API_KEY", ""),
             embedding_model=os.getenv("EMBEDDING_MODEL", "bge-m3"),
-            embedding_timeout_s=_env_float("EMBEDDING_TIMEOUT_S", 15.0),
-            embedding_batch=max(1, _env_int("EMBEDDING_BATCH", 32)),
+            embedding_timeout_s=float(os.getenv("EMBEDDING_TIMEOUT_S", "15.0")),
+            embedding_batch=max(1, int(os.getenv("EMBEDDING_BATCH", "32"))),
             rerank_base_url=os.getenv("RERANK_BASE_URL", "").strip(),
             # 多数托管平台 embedding 与 rerank 同一账号同一密钥，不单独配时跟着 embedding 走
             rerank_api_key=(os.getenv("RERANK_API_KEY") or os.getenv("EMBEDDING_API_KEY", "")).strip(),
@@ -350,7 +332,7 @@ class AsyncEmbeddingClient:
         """批量生成稠密向量，内部按 embedding_batch 分批，返回顺序与入参一致。
 
         timeout 覆盖本批请求的超时；不传则用配置里的 embedding_timeout_s。
-        在线读路径必须传短值，否则一次慢 embedding 就能拖垮整个请求。
+        记忆层的三个调用点都传 EMBED_BUDGET_S，把单次 embedding 收在读/写预算里。
         """
         return [dense for dense, _ in await self._embed(texts, timeout, want_sparse=False)]
 
@@ -361,19 +343,19 @@ class AsyncEmbeddingClient:
         return vectors[0]
 
     async def embed_documents_hybrid(
-        self, texts: Sequence[str], timeout: Optional[float] = None
+        self, texts: Sequence[str]
     ) -> List[Tuple[List[float], SparseVector]]:
-        """批量生成 (稠密向量, 稀疏向量)，顺序与入参一致。
+        """批量生成 (稠密向量, 稀疏向量)，顺序与入参一致。超时取配置的 embedding_timeout_s。
 
         服务端不返回稀疏向量时抛 EmbeddingError —— 混合索引没有降级路径，
         少一路就是检索结果不可信，宁可报错。
         """
-        return await self._embed(texts, timeout, want_sparse=True)
+        return await self._embed(texts, None, want_sparse=True)
 
     async def embed_query_hybrid(
-        self, text: str, timeout: Optional[float] = None
+        self, text: str
     ) -> Tuple[List[float], SparseVector]:
-        vectors = await self.embed_documents_hybrid([text], timeout=timeout)
+        vectors = await self.embed_documents_hybrid([text])
         if not vectors:
             raise EmbeddingError("embedding 服务返回空结果")
         return vectors[0]
@@ -517,9 +499,8 @@ class AsyncRerankClient:
         query: str,
         documents: Sequence[str],
         top_n: Optional[int] = None,
-        timeout: Optional[float] = None,
     ) -> List[Tuple[int, float]]:
-        """给 documents 打分，返回 [(原始下标, 相关性分数)]，按分数降序。
+        """给 documents 打分，返回 [(原始下标, 相关性分数)]，按分数降序。超时取配置的 rerank_timeout_s。
 
         分数是否落在 [0, 1] 取决于服务端有没有做归一化（bge-reranker 系一般给的是
         sigmoid 后的概率）；下游的断崖截断按相对差取阈值，量纲一致即可。
@@ -541,8 +522,6 @@ class AsyncRerankClient:
             },
             "json": payload,
         }
-        if timeout is not None:
-            request["timeout"] = timeout
 
         try:
             resp = await self._session().post(self._endpoint(), **request)
