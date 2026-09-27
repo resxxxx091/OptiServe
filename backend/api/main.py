@@ -126,9 +126,9 @@ async def lifespan(app: FastAPI):
     global _orchestrator, _memory, _tool_manager, _retrieval, _monitor, _skill_manager, _kb, _rerank_client
 
     from agents.agent_orchestrator import AgentOrchestrator
+    from core.performance_monitor import PerformanceMonitor
     from core.vector_store import VectorStoreConfig
     from memory.conversation_memory import MemoryManager
-    from monitor.performance_monitor import PerformanceMonitor
     from core.skill_loader import SkillManager
     from tools.knowledge_base import (
         KnowledgeBase,
@@ -210,8 +210,6 @@ async def lifespan(app: FastAPI):
         orchestrator=_orchestrator,
         tool_manager=_tool_manager,
         interval_s=float(os.getenv("MONITOR_INTERVAL", "10.0")),
-        alert_max=int(os.getenv("OPTISERVE_MONITOR_ALERT_MAX", "200")),
-        suggestion_max=int(os.getenv("OPTISERVE_MONITOR_SUGGESTION_MAX", "50")),
     )
     await _monitor.start()
 
@@ -494,7 +492,7 @@ async def chat(req: ChatRequest):
 
 @app.get("/monitor")
 async def monitor_summary():
-    """实时监控摘要：Agent 成功率、工具统计、告警、优化建议。"""
+    """运行期读数：Agent 与工具统计、路由降权与改判阈值。"""
     if _monitor is None:
         raise HTTPException(503, "服务未就绪")
     return _monitor.summary()

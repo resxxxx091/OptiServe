@@ -918,31 +918,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .mini-stats span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 
-.alert-note, .healthy-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: var(--sp-3);
-  padding: 9px 10px;
-  border-radius: var(--radius-md);
-  font-size: 11px;
-  line-height: 1.6;
-}
-
-.alert-note { background: var(--err-soft); border-left: 2px solid var(--err); color: #f8b3b3; }
-.healthy-note { background: var(--ok-soft); border-left: 2px solid var(--ok); color: #a6e3b8; }
-
-.alert-severity {
-  flex: 0 0 auto;
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
-  background: rgba(242, 109, 109, 0.22);
-  color: var(--err);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.6;
-}
-
 /* /health 的 dependencies：逐项列出闸门探测的结论，detail 是真实接上的端点与条数 */
 .dep-list { display: grid; margin: var(--sp-3) 0 0; }
 
@@ -982,26 +957,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .runtime-chips .chip-warn { background: var(--warn-soft); color: var(--warn); }
 .runtime-chips .chip-err { background: var(--err-soft); color: var(--err); }
-
-/* Monitor 的在线建议：title 给结论，action 长文放 tooltip */
-.suggestion-list { display: grid; gap: 5px; margin: var(--sp-3) 0 0; padding: 0; list-style: none; }
-
-.suggestion-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--text-soft);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.suggestion-list em {
-  flex: 0 0 auto;
-  color: var(--warn);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-style: normal;
-}
 
 /* ===================== 知识库 / 链路 布局 ===================== */
 

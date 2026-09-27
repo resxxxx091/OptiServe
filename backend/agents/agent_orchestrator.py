@@ -42,7 +42,7 @@ from tools.agent_tools import AgentToolSpec
 logger = logging.getLogger(__name__)
 
 # Monitor 回写的降权系数越过这条线，路由才在意图合法的候选里改选主 Agent。
-# 0.5 的取值来自 _routing_penalty：真要触发改选，该 Agent 早就在告警区里了。
+# 0.5 单靠延迟够不到（_routing_penalty 的延迟项封顶 0.4），改选必然带着成功率下滑。
 ROUTING_DEMOTE_THRESHOLD = float(os.getenv("OPTISERVE_ROUTING_DEMOTE_THRESHOLD", "0.5"))
 
 

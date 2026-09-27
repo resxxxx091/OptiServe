@@ -188,22 +188,8 @@
               <div class="mini-stats">
                 <div><strong>{{ totalRequests }}</strong><span>请求</span></div>
                 <div><strong>{{ agentCount }}</strong><span>Agent</span></div>
-                <div><strong>{{ activeAlerts.length }}</strong><span>告警</span></div>
+                <div><strong>{{ toolCount }}</strong><span>工具</span></div>
               </div>
-              <div v-if="activeAlerts.length" class="alert-note" role="status">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                  <path d="M8 2.5 14.5 13.5H1.5z" stroke-linejoin="round" />
-                  <path d="M8 6.5v3M8 11.5v.5" stroke-linecap="round" />
-                </svg>
-                <span><span class="alert-severity">{{ activeAlerts[0].severity }}</span>{{ activeAlerts[0].message }}</span>
-              </div>
-              <p v-else class="healthy-note" role="status">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                  <circle cx="8" cy="8" r="6" />
-                  <path d="m5.5 8 1.8 1.8L10.8 6.3" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                当前没有活跃告警。
-              </p>
               <dl v-if="healthDeps.length" class="dep-list">
                 <div v-for="dep in healthDeps" :key="dep.source">
                   <dt :class="dep.state === 'ok' ? 'success' : 'warn'">{{ dep.source }}</dt>
@@ -213,11 +199,6 @@
               <div v-if="runtimeChips.length" class="runtime-chips">
                 <span v-for="chip in runtimeChips" :key="chip.key" :class="chip.tone" :title="chip.title">{{ chip.text }}</span>
               </div>
-              <ul v-if="monitorSuggestions.length" class="suggestion-list">
-                <li v-for="item in monitorSuggestions" :key="item.title" :title="item.action">
-                  <em>P{{ item.priority }}</em><span>{{ item.title }}</span>
-                </li>
-              </ul>
             </section>
           </div>
         </aside>
@@ -339,7 +320,7 @@ const docTitle = ref('退款补充政策')
 const docContent = ref('大促期间退款审核时间可能延长到 3-5 个工作日。')
 const messageList = ref(null)
 const sidebarRef = ref(null)
-const monitorData = ref({ agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] })
+const monitorData = ref({ agent_stats: {}, tool_stats: {} })
 const skillsData = ref({ skills: [] })
 const lastResponse = ref(null)
 const toast = ref('')
@@ -349,10 +330,9 @@ let sidebarObserver
 
 const docsUrl = computed(() => `${API_BASE}/docs`)
 const userInitial = computed(() => (settings.userId || 'U').slice(0, 1).toUpperCase())
-const activeAlerts = computed(() => monitorData.value.active_alerts || [])
 const agentCount = computed(() => Object.keys(monitorData.value.agent_stats || {}).length)
+const toolCount = computed(() => Object.keys(monitorData.value.tool_stats || {}).length)
 const totalRequests = computed(() => Object.values(monitorData.value.agent_stats || {}).reduce((sum, item) => sum + Number(item.total || 0), 0))
-const monitorSuggestions = computed(() => monitorData.value.suggestions || [])
 
 // 闸门探测的依赖全通才会亮绿；出现非 ok 状态（将来的运行期探活）转琥珀
 const healthDot = computed(() => {
@@ -489,7 +469,7 @@ async function loadMonitor(signal) {
   try {
     monitorData.value = await requestMonitor(signal)
   } catch (error) {
-    if (!error.cancelled) monitorData.value = { agent_stats: {}, tool_stats: {}, active_alerts: [], suggestions: [] }
+    if (!error.cancelled) monitorData.value = { agent_stats: {}, tool_stats: {} }
   }
 }
 
