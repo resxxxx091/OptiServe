@@ -1,9 +1,10 @@
 ---
 name: billing-support
 description: 账单、扣款、退款、发票、订阅退费的对外口径与禁止事项。用户问到为什么扣款、重复扣款、退款能否成功、退款到账时效、开票与作废、取消续费时加载本规范
-keywords: 退款,退费,扣款,重复扣款,支付,账单,发票,订阅,续费,取消订阅,优惠券,余额,充值,付款,收据,invoice,refund,billing,payment
-agents: billing
-enabled: true
+metadata:
+  keywords: 退款,退费,扣款,重复扣款,支付,账单,发票,订阅,续费,取消订阅,优惠券,余额,充值,付款,收据,invoice,refund,billing,payment
+  agents: billing
+  enabled: true
 ---
 
 # 账单退款处理规范
@@ -78,6 +79,11 @@ enabled: true
 - 说明优惠券通常受有效期、适用范围、最低消费、活动规则限制。
 - 如果用户支付后要求补用优惠券，不要承诺可以补差价；说明需按活动规则或人工审核。
 - 退款后优惠券是否退回要根据券类型和活动规则判断。
+
+## 附表与升级操作
+
+- 各账单场景要核验哪些字段、哪几类必然转人工或财务、哪些话不能说，见 `references/billing-review-matrix.md`；附表里没有到账天数和退款比例，任何具体时效都要转人工核实后说明，不要凭记忆给数字。
+- 判定需要走退款审核、重复扣款核实、发票作废或重开时，用 `run_skill_script(name, "scripts/submit_financial_review.py", args)` 提交；返回的是受理回执，只代表已登记待核验，不代表退款通过、已开票或已补偿。
 
 ## 回复格式要求
 

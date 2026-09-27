@@ -1,9 +1,10 @@
 ---
 name: order-support
 description: 订单状态、发货进度、配送时效与收货信息变更的口径与禁止事项。用户说没收到货、问到货时间、催发货、改地址或要求取消订单时加载本规范
-agents: order
-keywords: 订单,物流,快递,发货,配送,收货,地址,运单
-enabled: true
+metadata:
+  agents: order
+  keywords: 订单,物流,快递,发货,配送,收货,地址,运单
+  enabled: true
 ---
 
 # 订单物流处理规范
@@ -31,6 +32,11 @@ enabled: true
 - 订单金额异常、重复下单、或支付成功但订单未生效。
 - 需要查询或修改后台订单系统数据的任何情形。
 - 用户明确要求人工，或涉及投诉与赔付。
+
+## 附表与升级操作
+
+- 各场景能说到哪一步、要补哪个字段、哪几类必然转人工，见 `references/order-status-matrix.md`；附表里没有任何到货时效，问到送达时间只说明当前状态和自查入口，不给具体天数。
+- 需要变更收货地址或取消已支付订单时，用 `run_skill_script(name, "scripts/submit_order_change.py", args)` 提交；返回的是受理回执，只代表诉求已登记待人工处理，不代表地址已改、订单已取消。
 
 ## 禁止事项
 

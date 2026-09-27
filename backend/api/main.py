@@ -155,7 +155,6 @@ async def lifespan(app: FastAPI):
     skills_dir = os.getenv("OPTISERVE_SKILLS_DIR", str(pathlib.Path(_ROOT) / "skills"))
     _skill_manager = SkillManager(
         root_dir=skills_dir,
-        max_body_chars=int(os.getenv("OPTISERVE_SKILL_MAX_BODY_CHARS", "6000")),
         max_index_chars=int(os.getenv("OPTISERVE_SKILL_INDEX_MAX_CHARS", "1500")),
     )
     _skill_manager.load()

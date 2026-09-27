@@ -1,25 +1,36 @@
 """
 OptiServe Skill 加载器。
 
-Skill 是一份可热加载的业务规范，走渐进式披露：system prompt 里只常驻它的
-name + description 索引，正文由 Agent 自行判断后调用 load_skill 工具取回。
-适合放置企业话术、处理流程、合规边界、排障 SOP 等需要运营侧快速调整的规则。
+Skill 是一份可热加载的业务规范，走上游 Agent Skills 规范的三层渐进式披露：
+第一层 name + description 索引常驻 system prompt；第二层正文由 Agent 调用
+load_skill 取回；第三层正文里指向的附表与演示脚本再按需取回或发起。
 """
-import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
-# 索引里单条 description 的展示上限；正文截断另有 max_body_chars 预算。
-INDEX_DESCRIPTION_CHARS = 120
+SKILL_FILENAME = "SKILL.md"
+
+# 上游规范对 name/description 的硬约束。
+SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+NAME_MAX_CHARS = 64
+DESCRIPTION_MAX_CHARS = 1024
+
+RESOURCE_SUFFIXES = {".md", ".txt", ".json", ".csv", ".yaml", ".yml"}
+SCRIPT_SUFFIXES = {".py", ".sh"}
+
 
 INDEX_PREAMBLE = (
     "以下 Skills 仅给出索引，正文未注入。\n"
-    "判断需要哪一项后调用工具 load_skill(name) 取回全文并遵循；"
-    "未取回全文前不要复述业务规则，也不要承诺时效、退款、赔偿或到货时间。"
+    "判断需要哪一项后调用工具 load_skill(name) 取回全文；"
+    "正文里指向的附表用 load_skill_resource(name, path) 读取，"
+    "需要人工或二线处理的操作用 run_skill_script(name, script) 发起；"
 )
 
 INDEX_POSTSCRIPT = (
@@ -33,14 +44,22 @@ def _sanitize(value: str) -> str:
 
 
 def _normalize_name(value: str) -> str:
-    # 连字符和下划线一并抹掉：Skill 名按官方规范是 kebab-case slug，
-    # 模型回写成 technical_support 这类变体时仍要能命中。
+    """把 Skill 名称归一化为小写、去掉空格和下划线，方便模糊匹配。"""
     return value.strip().lower().replace(" ", "").replace("_", "").replace("-", "")
+
+
+def _normalize_rel_path(value: str) -> str:
+    """反斜杠与 ./ 前缀是模型回写路径的常见变体，归一后再查清单。
+
+    注意这里不做 `..` 清理：清单里没有 `../x` 这样的条目，保留原样即匹配失败，
+    主动清理反而会把越界路径洗成清单内的合法路径。
+    """
+    return (value or "").strip().replace("\\", "/").removeprefix("./")
 
 
 @dataclass
 class Skill:
-    """单个 Skill 的标准化表示，屏蔽 Markdown/JSON 等不同文件格式差异。"""
+    """单个 Skill 的标准化表示，由 SkillManager.load() 解析目录后生成。"""
     name: str
     description: str
     content: str
@@ -49,6 +68,12 @@ class Skill:
     keywords: List[str] = field(default_factory=list)
     agents: List[str] = field(default_factory=list)
     enabled: bool = True
+    resources: List[str] = field(default_factory=list)
+    scripts: List[str] = field(default_factory=list)
+
+    @property
+    def skill_dir(self) -> Path:
+        return Path(self.path).parent
 
     def in_scope(self, agent_type: Optional[str]) -> bool:
         """可见性闸门：决定这个 Skill 出现在哪个 Agent 的索引里。
@@ -63,24 +88,15 @@ class Skill:
         return bool(agent_type) and agent_type.lower() in self.agents
 
     def hint(self, message: str) -> List[str]:
-        """关键词命中结果，只用于提示与排序，永不决定可见性。"""
+        """关键词命中结果，只用于提示与排序，不决定可见性。"""
         lowered = (message or "").lower()
         return [keyword for keyword in self.keywords if keyword.lower() in lowered]
 
     def index_line(self, keywords_hit: List[str]) -> str:
         """索引里的一行；名称是 load_skill 的入参，必须逐字给出。"""
         description = self.description.strip()
-        if len(description) > INDEX_DESCRIPTION_CHARS:
-            description = description[:INDEX_DESCRIPTION_CHARS].rstrip() + "…"
         hint_text = f"【命中:{','.join(keywords_hit)}】" if keywords_hit else ""
         return f"- {self.name}：{description}{hint_text}"
-
-    def body(self, max_chars: int) -> Tuple[str, bool]:
-        """返回 (正文, 是否被截断)。"""
-        text = self.content.strip()
-        if len(text) > max_chars:
-            return text[:max_chars].rstrip() + "\n...", True
-        return text, False
 
     def to_summary(self) -> Dict[str, Any]:
         """返回 API 可序列化摘要，避免把完整长文本默认暴露给健康检查。"""
@@ -92,6 +108,8 @@ class Skill:
             "agents": self.agents,
             "enabled": self.enabled,
             "content_chars": len(self.content),
+            "resources": self.resources,
+            "scripts": self.scripts,
         }
 
 
@@ -99,21 +117,16 @@ class SkillManager:
     """
     从目录中发现、解析并管理 Skills。
 
-    支持两种常用结构：
-      1. skills/refund/SKILL.md（目录内的其它文件属于这个 Skill，不另立条目）
-      2. skills/refund.json / skills/refund.md / skills/refund.txt
+    唯一结构：skills/<skill-name>/SKILL.md，目录内 references/ 与 scripts/
+    属于这条 Skill 的第三层材料，不另立索引条目。
     """
-
-    SUPPORTED_SUFFIXES = {".md", ".txt", ".json"}
 
     def __init__(
         self,
         root_dir: str,
-        max_body_chars: int = 6000,
         max_index_chars: int = 1500,
     ):
         self.root_dir = Path(root_dir).expanduser().resolve()
-        self.max_body_chars = max_body_chars
         self.max_index_chars = max_index_chars
         self._skills: List[Skill] = []
         self._errors: List[str] = []
@@ -139,7 +152,7 @@ class SkillManager:
 
         for path in self._discover_files(self.root_dir):
             try:
-                skill = self._load_file(path)
+                skill = self._load_skill(path)
                 if skill is not None:
                     loaded.append(skill)
             except Exception as ex:
@@ -222,6 +235,31 @@ class SkillManager:
                 return skill
         return None
 
+    def resource_for(self, skill: Skill, rel_path: str) -> Optional[str]:
+        """第三层取文：只认 load() 时扫出的清单，模型给的变体一律不纠正。
+
+        白名单来自启动/热加载时的目录扫描，因此扩展名与越界都被顺带挡住；
+        清单外新建的文件要等一次 /skills/reload，与正文的热加载语义一致。
+        """
+        rel = _normalize_rel_path(rel_path)
+        if rel not in skill.resources:
+            return None
+        root = skill.skill_dir.resolve()
+        target = (skill.skill_dir / rel).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            return None
+        if not target.is_file():
+            return None
+        return _sanitize(target.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def script_key(skill: Skill, rel_path: str) -> Optional[str]:
+        """把模型回写的脚本路径归一到 scripts 清单条目上；命中不了返回 None。"""
+        rel = _normalize_rel_path(rel_path)
+        return rel if rel in skill.scripts else None
+
     def summary(self) -> Dict[str, Any]:
         """返回 Skill 管理器状态，用于 /skills 接口和排障。"""
         return {
@@ -251,6 +289,8 @@ class SkillManager:
                     f"   agents: {agents}",
                     f"   keywords: {keywords}",
                     f"   body_chars: {len(skill.content)}",
+                    f"   resources: {', '.join(skill.resources) or 'none'}",
+                    f"   scripts: {', '.join(skill.scripts) or 'none'}",
                     f"   path: {skill.path}",
                 ])
         else:
@@ -268,157 +308,128 @@ class SkillManager:
             logger.warning(message)
 
     def _discover_files(self, root_dir: Path) -> Iterable[Path]:
-        """发现可加载文件，优先读取目录规范文件 SKILL.md。
+        """发现可加载文件：只有各 Skill 目录下的 SKILL.md 算一条 Skill。
 
-        技能目录内的其它文件属于那个 Skill，不另立条目——否则运营在目录里
+        目录内的其它文件属于那个 Skill，不另立条目——否则运营在目录里
         放一个 notes.md 就会凭空多出一条索引，还会被所有角色看到。
         """
-        skill_md_files = sorted(root_dir.rglob("SKILL.md"))
-        owned_dirs = {path.parent.resolve() for path in skill_md_files}
-        for path in skill_md_files:
-            yield path
+        yield from sorted(root_dir.rglob(SKILL_FILENAME))
 
-        for path in sorted(root_dir.rglob("*")):
-            if not path.is_file() or path.parent.resolve() in owned_dirs:
-                continue
-            if path.name.startswith(".") or path.name.upper() == "README.MD":
-                continue
-            if path.suffix.lower() in self.SUPPORTED_SUFFIXES:
-                yield path
-
-    def _load_file(self, path: Path) -> Optional[Skill]:
-        if path.suffix.lower() == ".json":
-            return self._load_json(path)
-        return self._load_text(path)
-
-    def _load_json(self, path: Path) -> Optional[Skill]:
-        raw = json.loads(_sanitize(path.read_text(encoding="utf-8")))
-        if not isinstance(raw, dict):
-            raise ValueError("JSON Skill 必须是对象格式")
-
-        content = str(raw.get("content") or raw.get("instructions") or "").strip()
-        if not content:
-            raise ValueError("缺少 content 或 instructions")
-
-        return Skill(
-            name=str(raw.get("name") or path.stem),
-            description=str(raw.get("description") or ""),
-            content=content,
-            path=str(path),
-            dir_name=path.parent.name if path.name == "SKILL.md" else "",
-            keywords=self._as_list(raw.get("keywords")),
-            agents=[item.lower() for item in self._as_list(raw.get("agents"))],
-            enabled=self._as_bool(raw.get("enabled")),
-        )
-
-    def _load_text(self, path: Path) -> Optional[Skill]:
+    def _load_skill(self, path: Path) -> Optional[Skill]:
         raw = _sanitize(path.read_text(encoding="utf-8"))
-        meta, body = self._split_front_matter(raw)
+        meta, body = _split_front_matter(raw)
+        if not isinstance(meta, dict):
+            raise ValueError("front matter 必须是键值映射")
         body = body.strip()
+
+        name = str(meta.get("name") or "").strip()
+        if not name:
+            raise ValueError("front matter 缺少 name")
+        if name != path.parent.name:
+            raise ValueError(f"name={name!r} 必须与目录名 {path.parent.name!r} 逐字一致")
+        if len(name) > NAME_MAX_CHARS or not SKILL_NAME_RE.match(name):
+            raise ValueError(
+                f"name={name!r} 不符合规范：1-{NAME_MAX_CHARS} 位小写字母/数字/单连字符，不以连字符开头结尾"
+            )
+        description = str(meta.get("description") or "").strip()
+        if not description:
+            raise ValueError("front matter 缺少 description")
+        if len(description) > DESCRIPTION_MAX_CHARS:
+            raise ValueError(f"description 超过 {DESCRIPTION_MAX_CHARS} 字")
         if not body:
             return None
 
-        is_dir_skill = path.name == "SKILL.md"
-        default_name = path.parent.name if is_dir_skill else path.stem
-        name = str(meta.get("name") or self._first_heading(body) or default_name)
-
-        # 如果首行标题只是 Skill 名称，正文里就去掉它，减少重复噪音。
-        body = self._strip_first_heading(body, name)
+        extra = meta.get("metadata") or {}
+        if not isinstance(extra, dict):
+            raise ValueError("metadata 必须是键值映射")
+        resources, scripts = _scan_manifest(path.parent)
 
         return Skill(
             name=name,
-            description=str(meta.get("description") or ""),
+            description=description,
             content=body,
             path=str(path),
-            dir_name=path.parent.name if is_dir_skill else "",
-            keywords=self._as_list(meta.get("keywords")),
-            agents=[item.lower() for item in self._as_list(meta.get("agents"))],
-            enabled=self._as_bool(meta.get("enabled")),
+            dir_name=path.parent.name,
+            keywords=_as_list(extra.get("keywords")),
+            agents=[item.lower() for item in _as_list(extra.get("agents"))],
+            enabled=_as_bool(extra.get("enabled")),
+            resources=resources,
+            scripts=scripts,
         )
 
-    def _split_front_matter(self, raw: str) -> Tuple[Dict[str, Any], str]:
-        """
-        解析 Markdown 顶部的简单 front matter。
 
-        这里刻意不用 PyYAML，避免为一个轻量配置格式新增运行时依赖。
-        列表支持两种写法：`key: v1, v2` 行内，和缩进的 `- v1` 块式。
-        """
-        text = raw.lstrip()
-        if not text.startswith("---"):
-            return {}, raw
+def _scan_manifest(skill_dir: Path) -> Tuple[List[str], List[str]]:
+    """扫出第三层清单，只记相对路径；随 load() 刷新，不给每次请求重复走盘。
 
-        lines = text.splitlines()
-        if not lines or lines[0].strip() != "---":
-            return {}, raw
+    scripts/ 下列出的脚本只是可查目录与可读源码：执行是模拟的，见
+    tools.agent_tools.run_skill_script，本模块从不解释或运行它们。
 
-        meta: Dict[str, Any] = {}
-        last_key: Optional[str] = None
-        end_idx: Optional[int] = None
-        for idx, line in enumerate(lines[1:], start=1):
-            if line.strip() == "---":
-                end_idx = idx
-                break
-            stripped = line.strip()
-            if stripped.startswith("- ") and last_key is not None:
-                current = meta.get(last_key)
-                if not isinstance(current, list):
-                    # 已写成行内值时不混用两种写法，避免静默覆盖。
-                    if str(current or "").strip():
-                        continue
-                    current = []
-                    meta[last_key] = current
-                current.append(stripped[2:].strip().strip("\"'"))
-                continue
-            if ":" not in line:
-                continue
-            key, value = line.split(":", 1)
-            key = key.strip()
-            meta[key] = value.strip().strip("\"'")
-            last_key = key
+    目录联接会让 rglob 走进 Skill 目录之外，解析后出界的条目直接丢弃——
+    清单本身会作为 load_skill 的返回体进上下文，列出去就等于泄露目录树。
+    """
+    root = skill_dir.resolve()
+    resources: List[str] = []
+    scripts: List[str] = []
+    for entry in sorted(skill_dir.rglob("*")):
+        if not entry.is_file() or entry.name == SKILL_FILENAME:
+            continue
+        rel = entry.relative_to(skill_dir)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        try:
+            entry.resolve().relative_to(root)
+        except ValueError:
+            continue
+        rel_path = rel.as_posix()
+        suffix = entry.suffix.lower()
+        if "scripts" in rel.parts:
+            if suffix in SCRIPT_SUFFIXES:
+                scripts.append(rel_path)
+        elif suffix in RESOURCE_SUFFIXES:
+            resources.append(rel_path)
+    return resources, scripts
 
-        if end_idx is None:
-            return {}, raw
-        return meta, "\n".join(lines[end_idx + 1:])
 
-    @staticmethod
-    def _first_heading(body: str) -> Optional[str]:
-        for line in body.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#"):
-                return stripped.lstrip("#").strip() or None
-        return None
+def _split_front_matter(raw: str) -> Tuple[Any, str]:
+    """切出 --- 包裹的 YAML front matter 与其后的正文。
 
-    @staticmethod
-    def _strip_first_heading(body: str, name: str) -> str:
-        lines = body.splitlines()
-        if not lines:
-            return body
-        first = lines[0].strip()
-        if first.startswith("#") and first.lstrip("#").strip() == name:
-            return "\n".join(lines[1:]).strip()
-        return body
+    PyYAML 已经在依赖树里（langchain-core 带的），第三层要承载嵌套 metadata，
+    再手写解析器只会漏键：自定义字段一律读成字符串就没法表达子映射。
+    """
+    lines = raw.lstrip().splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}, raw
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            block = "\n".join(lines[1:idx])
+            body = "\n".join(lines[idx + 1:])
+            try:
+                return yaml.safe_load(block) or {}, body
+            except yaml.YAMLError as ex:
+                raise ValueError(f"front matter 不是合法 YAML: {ex}") from None
+    return {}, raw
 
-    @staticmethod
-    def _as_list(value: Any) -> List[str]:
-        if value is None or value == "":
-            return []
-        if isinstance(value, list):
-            items: Iterable[Any] = value
-        else:
-            # YAML 流式写法 [a, b] 和中文逗号都归一掉，否则元素会带着括号
-            # 或被当成一整个关键词而永远匹配不上。
-            items = str(value).strip().strip("[]{}").replace("，", ",").split(",")
-        return [
-            cleaned
-            for cleaned in (
-                str(item).strip().strip("\"'") for item in items
-            ) if cleaned
-        ]
 
-    @staticmethod
-    def _as_bool(value: Any) -> bool:
-        if value is None or value == "":
-            return True
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() not in {"0", "false", "no", "off", "disabled"}
+def _as_list(value: Any) -> List[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, (list, tuple)):
+        items: Iterable[Any] = value
+    else:
+        # 逗号分隔的行内写法与中文逗号都归一掉，否则元素会带着括号
+        # 或被当成一整个关键词而永远匹配不上。
+        items = str(value).strip().strip("[]{}").replace("，", ",").split(",")
+    return [
+        cleaned
+        for cleaned in (
+            str(item).strip().strip("\"'") for item in items
+        ) if cleaned
+    ]
+
+
+def _as_bool(value: Any) -> bool:
+    if value is None or value == "":
+        return True
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {"0", "false", "no", "off", "disabled"}

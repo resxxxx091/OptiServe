@@ -236,6 +236,9 @@ class AgentOrchestrator:
 
         索引里有【命中】标记意味着"用户措辞确实落在该规范的适用面上"，此时不调
         load_skill 就是漏加载——这条 warning 是"注入是否被判断取代"的观测手段。
+
+        只认 load_skill：第三层的 load_skill_resource/run_skill_script 不算数，
+        绕过正文直接读附表或发起操作正是要盯的反模式。
         """
         if self._skill_manager is None or "load_skill" in tools_used:
             return

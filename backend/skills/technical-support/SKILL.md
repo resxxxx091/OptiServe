@@ -1,9 +1,10 @@
 ---
 name: technical-support
 description: 故障排查、错误码解读、配置指导与升级条件的口径。用户报告报错、无法登录、接口或 SDK 异常、超时崩溃、需要排查步骤或判断能否升级时加载本规范
-keywords: 报错,错误,异常,崩溃,卡顿,无法登录,登录失败,接口,API,SDK,配置,部署,连接失败,超时,500,401,403,404,回调,webhook,日志,数据库,缓存
-agents: technical
-enabled: true
+metadata:
+  keywords: 报错,错误,异常,崩溃,卡顿,无法登录,登录失败,接口,API,SDK,配置,部署,连接失败,超时,500,401,403,404,回调,webhook,日志,数据库,缓存
+  agents: technical
+  enabled: true
 ---
 
 # 技术支持处理规范
@@ -70,6 +71,11 @@ enabled: true
 - 按环境变量、配置文件、启动命令、依赖版本、端口占用、权限、日志路径顺序检查。
 - 对 Docker/Compose 场景，要提醒确认容器网络、服务名解析、volume 挂载和环境变量覆盖。
 - 对生产部署，任何涉及重启、迁移、清理数据的操作都要提示先备份和评估影响。
+
+## 附表与升级操作
+
+- 常见 HTTP 状态码与连接类错误的含义、排查方向、需要补充的信息，见 `references/error-codes.md`；需要码表细节时用 `load_skill_resource(name, path)` 取回，不要凭记忆编造错误码含义。
+- 判定需要转二线技术时，用 `run_skill_script(name, "scripts/escalate_to_second_line.py", args)` 发起升级；返回的是受理回执，不代表故障已修复，也不代表二线已经接手。
 
 ## 回复格式要求
 

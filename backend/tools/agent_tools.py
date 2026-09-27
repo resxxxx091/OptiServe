@@ -8,16 +8,19 @@ Agent 侧工具契约与不查外部系统的确定性工具，编排器只负�
   - 当前请求分析
   - 技术排障建议
   - 账单字段核验
-  - 业务 Skill 规范正文的按需取回
+  - 业务 Skill 规范正文、附表与演示操作的按需取回
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from agents.base import Request
+
+logger = logging.getLogger(__name__)
 
 
 AgentToolHandler = Callable[["Request", Dict[str, Any]], Union[Any, Awaitable[Any]]]
@@ -102,7 +105,11 @@ def suggest_required_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any
 
 
 def lookup_error_code(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-    """技术工具：解释常见错误码的排查方向，不声称读取了服务端日志。"""
+    """技术工具：解释常见错误码的排查方向，不声称读取了服务端日志。
+
+    TODO: 这张表与 skills/technical-support/references/error-codes.md 是同一份
+    知识的两处副本，将来应归一到热加载那一侧。
+    """
     code = str(args.get("error_code", "")).upper().strip()
     mapping = {
         "401": ("认证失败", ["确认 Token/API Key 是否过期", "确认请求时间戳和签名", "确认账号登录状态"]),
@@ -176,34 +183,95 @@ def build_skill_tools(
     get_manager: Callable[[], Any],
     agent_type: Optional[str] = None,
 ) -> Dict[str, AgentToolSpec]:
-    """构建 Skill。"""
+    """构建三层渐进式披露的取回工具：正文、附表、演示操作。"""
 
-    def load_skill(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-        manager = get_manager()
-        name = str(args.get("name") or "").strip()
+    NAME_SCHEMA = {
+        "name": {
+            "type": "string",
+            "description": "Skill 名称，须与 [可用 Skills] 索引中的名称逐字一致",
+        },
+    }
+
+    def resolve(manager: Any, name: str) -> Dict[str, Any]:
+        """三条工具共用同一种失败形状：带上可见名称，让模型自己纠正。"""
         if manager is None:
-            return {"success": False, "error": "Skills 未初始化", "content": "", "available": []}
+            return {"error": "Skills 未初始化", "available": []}
         if not name:
-            return {"success": False, "error": "name 不能为空", "content": "", "available": []}
-
+            return {"error": "name 不能为空", "available": []}
         skill = manager.body_for(name)
         if skill is None:
             return {
-                "success": False,
                 "error": f"未找到名为「{name}」的 Skill，请从 [可用 Skills] 索引中逐字复制名称",
-                "content": "",
                 "available": [item.name for item in manager.catalog_for(agent_type)],
             }
+        return {"skill": skill}
 
-        content, truncated = skill.body(manager.max_body_chars)
+    def load_skill(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+        manager = get_manager()
+        resolved = resolve(manager, str(args.get("name") or "").strip())
+        if "error" in resolved:
+            return {"success": False, "content": "", **resolved}
+        skill = resolved["skill"]
         return {
             "success": True,
             "name": skill.name,
             "description": skill.description,
-            "content": content,
-            "returned_chars": len(content),
-            "total_chars": len(skill.content),
-            "truncated": truncated,
+            "content": skill.content.strip(),
+            # 清单随正文一起给出，模型才知道下一跳该传哪个相对路径。
+            "resources": skill.resources,
+            "scripts": skill.scripts,
+        }
+
+    def load_skill_resource(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+        manager = get_manager()
+        resolved = resolve(manager, str(args.get("name") or "").strip())
+        if "error" in resolved:
+            return {"success": False, "content": "", **resolved}
+        skill = resolved["skill"]
+        rel = str(args.get("path") or "").strip()
+        content = manager.resource_for(skill, rel)
+        if content is None:
+            return {
+                "success": False,
+                "content": "",
+                "error": f"未能读取「{skill.name}」下的「{rel}」，路径须逐字取自下面的清单",
+                "available": skill.resources,
+            }
+        return {
+            "success": True,
+            "name": skill.name,
+            "path": rel.replace("\\", "/"),
+            "content": content.strip(),
+        }
+
+    def run_skill_script(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+        """演示操作：只登记一次调用并回执，脚本文件的内容从不被执行。
+
+        真实动作发生在线下，所以回执只说"已受理"——billing 这类规范正文规定
+        缺少核验信息时不得承诺结果，回执不能替模型破它自己的规矩。
+        """
+        manager = get_manager()
+        resolved = resolve(manager, str(args.get("name") or "").strip())
+        if "error" in resolved:
+            return {"success": False, **resolved}
+        skill = resolved["skill"]
+        script = manager.script_key(skill, str(args.get("script") or ""))
+        if script is None:
+            return {
+                "success": False,
+                "error": f"「{skill.name}」下没有登记名为「{args.get('script')}」的操作，script 须逐字取自 load_skill 返回的 scripts 清单",
+                "available": skill.scripts,
+            }
+        params = args.get("args") or {}
+        logger.info("[skill-sim] request=%s skill=%s script=%s args=%s",
+                    req.request_id, skill.name, script, params)
+        return {
+            "success": True,
+            "name": skill.name,
+            "operation": script,
+            "status": "accepted",
+            "detail": "已受理，等待人工核验",
+            "request_id": req.request_id,
         }
 
     return {
@@ -212,16 +280,46 @@ def build_skill_tools(
             "按名称加载业务 Skill 的完整规范正文。当问题涉及对外业务口径——退款与到账时效、"
             "发票与扣款、订单状态与到货时间、故障排查步骤、升级条件与禁止事项——时，"
             "先加载对应 Skill 再据此回答。name 必须与 system prompt 的 [可用 Skills] 索引逐字一致。"
+            "返回体里的 resources/scripts 是该 Skill 的第三层清单，正文指向附表或操作时会一并给出。"
             "需要多个 Skill 或其它工具时，请在同一轮内并行发起多个调用。",
-            {
-                "name": {
-                    "type": "string",
-                    "description": "Skill 名称，须与 [可用 Skills] 索引中的名称逐字一致",
-                },
-            },
+            NAME_SCHEMA,
             load_skill,
             required=["name"],
-        )
+        ),
+        "load_skill_resource": make_tool(
+            "load_skill_resource",
+            "读取某个 Skill 目录下的附表或参考文档（例如错误码对照表、费率表、话术模板）。"
+            "只有当已加载的正文指向它、或你需要正文未展开的细节时才调用。"
+            "path 是相对 SKILL.md 的路径，必须逐字取自 load_skill 返回的 resources 列表，不能自行拼造。",
+            {
+                **NAME_SCHEMA,
+                "path": {
+                    "type": "string",
+                    "description": "相对该 Skill 根目录的文件路径，须与 resources 清单逐字一致",
+                },
+            },
+            load_skill_resource,
+            required=["name", "path"],
+        ),
+        "run_skill_script": make_tool(
+            "run_skill_script",
+            "发起一次需要人工或二线接手的业务操作（例如转二线技术、提交退款核验工单）。"
+            "当规范正文要求走升级或人工流程时使用，返回的是一次受理回执，只代表操作已登记，不代表结果已生效。"
+            "script 必须逐字取自 load_skill 返回的 scripts 清单，形如 scripts/xxx.py。",
+            {
+                **NAME_SCHEMA,
+                "script": {
+                    "type": "string",
+                    "description": "相对该 Skill 根目录的脚本路径，须与 scripts 清单中的条目逐字一致",
+                },
+                "args": {
+                    "type": "object",
+                    "description": "该操作需要的关键字段（订单号、错误码、request_id 等），可为空",
+                },
+            },
+            run_skill_script,
+            required=["name", "script"],
+        ),
     }
 
 
