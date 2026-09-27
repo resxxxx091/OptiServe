@@ -1,13 +1,8 @@
 """
-亮点：利用 Monitor 监控 Agent 在线表现
-
-核心问题：如何利用 Monitor 监控 Agent 的在线表现？
-
-本模块的答案：
+性能监控模块，用于监控 Agent 和工具的在线表现。
   1. 实时采集 —— 每隔 N 秒从 Orchestrator 和 ToolManager 拉取最新统计
   2. 异常检测 —— Z-score 统计方法，自动发现指标突变
-  3. 路由反馈 —— 将 Agent 成功率/延迟写回 Orchestrator，
-     penalty 越线时 Orchestrator._apply_demotion 会改选主 Agent
+  3. 路由反馈 —— 将 Agent 成功率/延迟写回 Orchestrator，penalty 越线时 Orchestrator._apply_demotion 会改选主 Agent
   4. 优化建议 —— 基于规则生成可操作的优化建议（不是空话）
   5. 告警 —— 超阈值时记进告警列表并打日志
 """

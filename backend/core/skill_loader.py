@@ -1,9 +1,10 @@
 """
 OptiServe Skill 加载器。
 
-Skill 是一份可热加载的业务规范，走上游 Agent Skills 规范的三层渐进式披露：
-第一层 name + description 索引常驻 system prompt；第二层正文由 Agent 调用
-load_skill 取回；第三层正文里指向的附表与演示脚本再按需取回或发起。
+Skill 是一份可热加载的业务规范，走 Agent Skills 规范的三层渐进式披露：
+第一层 name + description 索引常驻 system prompt；
+第二层正文由 Agent 调用load_skill 取回；
+第三层正文里指向的附表与演示脚本再由 Agent 按需取回或发起。
 """
 import logging
 import re
@@ -17,11 +18,12 @@ logger = logging.getLogger(__name__)
 
 SKILL_FILENAME = "SKILL.md"
 
-# 上游规范对 name/description 的硬约束。
+# Agent Skills 规范（https://agentskills.io/specification）。
+# name 必需、1-64 字符、kebab-case、必须等于父目录名；description 必需、1-1024 字符。
 SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 NAME_MAX_CHARS = 64
 DESCRIPTION_MAX_CHARS = 1024
-
+# 资源与脚本的扩展名白名单。
 RESOURCE_SUFFIXES = {".md", ".txt", ".json", ".csv", ".yaml", ".yml"}
 SCRIPT_SUFFIXES = {".py", ".sh"}
 
@@ -49,11 +51,7 @@ def _normalize_name(value: str) -> str:
 
 
 def _normalize_rel_path(value: str) -> str:
-    """反斜杠与 ./ 前缀是模型回写路径的常见变体，归一后再查清单。
-
-    注意这里不做 `..` 清理：清单里没有 `../x` 这样的条目，保留原样即匹配失败，
-    主动清理反而会把越界路径洗成清单内的合法路径。
-    """
+    """把 Skill 资源或脚本的相对路径归一化为正斜杠、去掉开头的 ./，方便模糊匹配。2"""
     return (value or "").strip().replace("\\", "/").removeprefix("./")
 
 
@@ -117,8 +115,7 @@ class SkillManager:
     """
     从目录中发现、解析并管理 Skills。
 
-    唯一结构：skills/<skill-name>/SKILL.md，目录内 references/ 与 scripts/
-    属于这条 Skill 的第三层材料，不另立索引条目。
+    唯一结构：skills/<skill-name>/SKILL.md，目录内 references/ 与 scripts/属于这条 Skill 的第三层材料，不另立索引条目。
     """
 
     def __init__(
@@ -359,14 +356,7 @@ class SkillManager:
 
 
 def _scan_manifest(skill_dir: Path) -> Tuple[List[str], List[str]]:
-    """扫出第三层清单，只记相对路径；随 load() 刷新，不给每次请求重复走盘。
-
-    scripts/ 下列出的脚本只是可查目录与可读源码：执行是模拟的，见
-    tools.agent_tools.run_skill_script，本模块从不解释或运行它们。
-
-    目录联接会让 rglob 走进 Skill 目录之外，解析后出界的条目直接丢弃——
-    清单本身会作为 load_skill 的返回体进上下文，列出去就等于泄露目录树。
-    """
+    """扫出第三层清单，只记相对路径；随 load() 刷新，不给每次请求重复走盘。"""
     root = skill_dir.resolve()
     resources: List[str] = []
     scripts: List[str] = []
@@ -391,11 +381,7 @@ def _scan_manifest(skill_dir: Path) -> Tuple[List[str], List[str]]:
 
 
 def _split_front_matter(raw: str) -> Tuple[Any, str]:
-    """切出 --- 包裹的 YAML front matter 与其后的正文。
-
-    PyYAML 已经在依赖树里（langchain-core 带的），第三层要承载嵌套 metadata，
-    再手写解析器只会漏键：自定义字段一律读成字符串就没法表达子映射。
-    """
+    """切出 --- 包裹的 YAML front matter 与其后的正文。"""
     lines = raw.lstrip().splitlines()
     if not lines or lines[0].strip() != "---":
         return {}, raw

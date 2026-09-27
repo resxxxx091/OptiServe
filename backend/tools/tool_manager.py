@@ -41,20 +41,13 @@ class ToolResult:
 
 @dataclass
 class ToolStats:
-    """工具运行时统计，供 Monitor 读取。
-
-    口径：total = 每次进入调用的请求（含熔断拒绝，不含"工具不存在"）；
-    success = 调用方拿到了可用结果（真实成功 + 降级救回），
-    调用方没拿到结果的那些不单独记，看 total - success 就是。
-    fallback 是 success 的子集，单独记才看得出"成功率 100% 但全靠兜底"。
-    延迟均值只按 latency_samples 算，避免拒绝和缓存命中把 avg_ms 拉低。
-    """
-    total:              int = 0
-    success:            int = 0
-    fallback:           int = 0
-    total_latency_ms:   float = 0.0
-    latency_samples:    int = 0     # 真正跑到 handler 的次数，延迟均值只按它算
-    consecutive_fails:  int = 0
+    """工具运行时统计，供 Monitor 读取。"""
+    total:              int = 0 # 每次进入调用的请求（含熔断拒绝，不含"工具不存在"）
+    success:            int = 0 # 调用方拿到可用结果（真实成功 + 降级救回）
+    fallback:           int = 0 # 调用方拿到兜底结果（降级救回）
+    total_latency_ms:   float = 0.0 # handler 执行的总延迟（ms）
+    latency_samples:    int = 0 # 真正跑到 handler 的次数，延迟均值只按它算
+    consecutive_fails:  int = 0 # 连续失败次数，熔断器用
 
     @property
     def success_rate(self) -> float:
