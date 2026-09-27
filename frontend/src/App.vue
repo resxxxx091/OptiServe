@@ -32,7 +32,7 @@
 
     <section v-if="activeView === 'chat'" class="page page-chat">
       <div class="page-heading">
-        <div class="heading-copy">
+        <div>
           <span class="kicker">POST /chat</span>
           <h1>和客服 Agent 对话</h1>
           <p>发送一条真实请求，查看它如何识别意图、选择 Agent 并生成回复。</p>
@@ -132,7 +132,10 @@
             <section class="side-card connection-card">
               <div class="card-heading">
                 <h2>连接配置</h2>
-                <span class="status-copy" :class="healthOk ? 'success' : 'muted'">{{ healthLabel }}</span>
+                <!-- 有读数时报条数；拿不到时退回健康文案，别在探测失败后谎称「未检查」 -->
+                <span class="status-copy" :class="healthOk ? 'success' : 'muted'">
+                  {{ healthDeps.length ? `${healthDeps.length} 项依赖` : healthLabel }}
+                </span>
               </div>
 
               <label>
@@ -145,7 +148,7 @@
               </label>
               <label>
                 <span>访问令牌</span>
-                <input v-model="settings.apiToken" @change="persist" type="password" placeholder="留空表示后端未启用鉴权" />
+                <input v-model="settings.apiToken" @change="persist" type="password" placeholder="留空则写入类操作会被后端拒绝" />
               </label>
               <div class="side-actions">
                 <button class="quiet-button" @click="refreshConsole">刷新</button>
@@ -160,15 +163,24 @@
               <div v-if="lastResponse" class="trace-body">
                 <div class="latency">
                   <span>响应耗时</span>
-                  <strong>{{ lastResponse.latencyMs || '-' }}<small> ms</small></strong>
+                  <strong>{{ lastResponse.latencyMs ?? '-' }}<small> ms</small></strong>
                 </div>
                 <dl class="detail-list">
-                  <div><dt>主 Agent</dt><dd>{{ lastResponse.primaryAgent || lastResponse.agentType || '-' }}</dd></div>
-                  <div><dt>意图</dt><dd>{{ lastResponse.intent || '-' }}</dd></div>
+                  <div><dt>主 Agent</dt><dd>{{ lastResponse.primaryAgent }}</dd></div>
+                  <div><dt>意图</dt><dd>{{ lastResponse.intent }}</dd></div>
                   <div><dt>置信度</dt><dd>{{ formatPercent(lastResponse.routingConfidence) }}</dd></div>
+                  <div v-if="lastResponse.toolsUsed.length"><dt>工具</dt><dd>{{ lastResponse.toolsUsed.join(' · ') }}</dd></div>
                   <div><dt>知识库</dt><dd :class="lastResponse.knowledgeUsed ? 'success' : 'muted'">{{ lastResponse.knowledgeUsed ? '已使用' : '未使用' }}</dd></div>
                   <div><dt>降级</dt><dd :class="lastResponse.degraded ? 'warn' : 'muted'">{{ lastResponse.degraded ? `是 · ${lastResponse.degradations.length} 项` : '否' }}</dd></div>
                   <div><dt>转人工</dt><dd :class="lastResponse.escalated ? 'danger' : 'muted'">{{ lastResponse.escalated ? '是' : '否' }}</dd></div>
+                  <div class="trace-row">
+                    <dt>request_id</dt>
+                    <dd>
+                      <span>{{ lastResponse.requestId }}</span>
+                      <button class="link-button" @click="copyRequestId">{{ copied ? '已复制' : '复制' }}</button>
+                      <a v-if="langfuseUserUrl" class="link-button" :href="langfuseUserUrl" target="_blank" rel="noreferrer">Langfuse</a>
+                    </dd>
+                  </div>
                 </dl>
                 <p v-if="lastResponse.routingReason" class="routing-reason">{{ lastResponse.routingReason }}</p>
                 <ul v-if="lastResponse.degradations?.length" class="degrade-list">
@@ -181,7 +193,7 @@
               <p v-else class="side-empty">发送消息后，这里会显示 Agent 路由、意图和耗时。</p>
             </section>
 
-            <section class="side-card monitor-card">
+            <section class="side-card">
               <div class="card-heading">
                 <h2>运行状态</h2>
               </div>
@@ -207,7 +219,7 @@
 
     <section v-else-if="activeView === 'knowledge'" class="page page-knowledge">
       <div class="page-heading">
-        <div class="heading-copy">
+        <div>
           <span class="kicker">POST /search</span>
           <h1>知识库</h1>
           <p>搜索、补充和维护客服 Agent 使用的知识片段。</p>
@@ -216,10 +228,10 @@
       </div>
 
       <div class="knowledge-layout">
-        <section class="workspace-card search-workspace">
+        <section class="workspace-card">
           <div class="card-heading">
             <h2>检索知识</h2>
-            <code>top_k 5</code>
+            <code>top_k {{ SEARCH_TOP_K }}</code>
           </div>
           <div class="search-line">
             <input v-model="searchQuery" placeholder="例如：退款多久到账" @keydown.enter="searchKnowledge" />
@@ -254,7 +266,7 @@
           <div v-else class="workspace-empty">{{ searchedOnce ? '这次检索没有命中任何片段。' : '输入客户问题开始搜索。' }}</div>
         </section>
 
-        <section class="workspace-card import-workspace">
+        <section class="workspace-card">
           <div class="card-heading">
             <h2>添加知识</h2>
             <code>Milvus 混合索引</code>
@@ -275,10 +287,17 @@
         </div>
         <div class="skill-table">
           <div v-for="skill in skillsData.skills" :key="skill.name" class="skill-item">
-            <span class="skill-dot"></span><strong>{{ skill.name }}</strong><span>{{ skill.description || '业务规范能力' }}</span><small>{{ skill.content_chars || 0 }} chars</small>
+            <span class="skill-dot"></span><strong>{{ skill.name }}</strong><span>{{ skill.description }}</span><small>{{ skill.content_chars }} chars</small>
           </div>
           <div v-if="!skillsData.skills.length" class="workspace-empty">暂无已加载 Skill。</div>
         </div>
+        <!-- 解析失败后端只进日志和这个字段，界面上不列就永远看不到 -->
+        <ul v-if="skillsData.errors.length" class="degrade-list">
+          <li v-for="(error, index) in skillsData.errors" :key="`skill-error-${index}`">
+            <code>skill</code>
+            <span>{{ error }}</span>
+          </li>
+        </ul>
       </section>
     </section>
   </main>
@@ -288,7 +307,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   API_BASE,
+  LANGFUSE_PROJECT_URL,
+  SEARCH_TOP_K,
   addKnowledge,
+  chatUserId,
   createInitialSettings,
   reloadSkills,
   requestChat,
@@ -320,19 +342,28 @@ const docTitle = ref('退款补充政策')
 const docContent = ref('大促期间退款审核时间可能延长到 3-5 个工作日。')
 const messageList = ref(null)
 const sidebarRef = ref(null)
-const monitorData = ref({ agent_stats: {}, tool_stats: {} })
-const skillsData = ref({ skills: [] })
+/* 初值就按 /monitor 的契约形状给全：三个键后端恒返回，读到空壳而不是 undefined，
+   下面就不必为"还没刷过"再兜一层。 */
+const monitorData = ref({ agent_stats: {}, tool_stats: {}, routing: { agents: {}, demote_threshold: 0 } })
+const skillsData = ref({ skills: [], errors: [] })
 const lastResponse = ref(null)
+const copied = ref(false)
 const toast = ref('')
 let toastTimer
+let copyTimer
 let messageSequence = 0
 let sidebarObserver
+let chatController = null
 
 const docsUrl = computed(() => `${API_BASE}/docs`)
 const userInitial = computed(() => (settings.userId || 'U').slice(0, 1).toUpperCase())
-const agentCount = computed(() => Object.keys(monitorData.value.agent_stats || {}).length)
-const toolCount = computed(() => Object.keys(monitorData.value.tool_stats || {}).length)
-const totalRequests = computed(() => Object.values(monitorData.value.agent_stats || {}).reduce((sum, item) => sum + Number(item.total || 0), 0))
+const agentCount = computed(() => Object.keys(monitorData.value.agent_stats).length)
+const toolCount = computed(() => Object.keys(monitorData.value.tool_stats).length)
+const totalRequests = computed(() => Object.values(monitorData.value.agent_stats).reduce((sum, item) => sum + item.total, 0))
+const langfuseUserUrl = computed(() => {
+  if (!LANGFUSE_PROJECT_URL) return ''
+  return `${LANGFUSE_PROJECT_URL}/users/${encodeURIComponent(chatUserId(settings))}`
+})
 
 // 闸门探测的依赖全通才会亮绿；出现非 ok 状态（将来的运行期探活）转琥珀
 const healthDot = computed(() => {
@@ -349,25 +380,23 @@ const dependencyHint = computed(() =>
    Monitor 降权。两者都为空时整块不渲染。 */
 const runtimeChips = computed(() => {
   const chips = []
-  for (const [name, stat] of Object.entries(monitorData.value.tool_stats || {})) {
-    const state = stat?.circuit_state
-    if (!state || state === 'closed') continue
+  for (const [name, stat] of Object.entries(monitorData.value.tool_stats)) {
+    if (stat.circuit_state === 'closed') continue
     chips.push({
       key: `tool-${name}`,
-      text: `${name} · ${state}`,
-      tone: state === 'open' ? 'chip-err' : 'chip-warn',
-      title: `熔断 ${state}：连续失败 ${stat.consecutive_fails ?? 0} 次，成功率 ${formatPercent(stat.success_rate)}`
+      text: `${name} · ${stat.circuit_state}`,
+      tone: stat.circuit_state === 'open' ? 'chip-err' : 'chip-warn',
+      title: `熔断 ${stat.circuit_state}：连续失败 ${stat.consecutive_fails} 次，成功率 ${formatPercent(stat.success_rate)}`
     })
   }
-  const routing = monitorData.value.routing || {}
-  for (const [name, info] of Object.entries(routing.agents || {})) {
-    const penalty = Number(info?.penalty ?? 0)
-    if (penalty <= 0) continue
+  const routing = monitorData.value.routing
+  for (const [name, info] of Object.entries(routing.agents)) {
+    if (info.penalty <= 0) continue
     chips.push({
       key: `agent-${name}`,
-      text: `${name} · 降权 ${penalty}`,
-      tone: info?.demoted ? 'chip-err' : 'chip-warn',
-      title: `路由 penalty ${penalty}，改判阈值 ${routing.demote_threshold ?? '-'}${info?.demoted ? '（已越线：路由会改选意图合法的备选 Agent）' : ''}`
+      text: `${name} · 降权 ${info.penalty}`,
+      tone: info.demoted ? 'chip-err' : 'chip-warn',
+      title: `路由 penalty ${info.penalty}，改判阈值 ${routing.demote_threshold}${info.demoted ? '（已越线：路由会改选意图合法的备选 Agent）' : ''}`
     })
   }
   return chips
@@ -376,7 +405,7 @@ const runtimeChips = computed(() => {
 /* /search 的 stages 是「各级还剩几条」，只有粗排之后的三级是同一量纲的文档条数，
    所以它们画成漏斗；改写条数与召回路数是另一种单位，只做旁注。 */
 const funnelRows = computed(() => {
-  const stages = searchStages.value || {}
+  const stages = searchStages.value
   const rows = [
     { label: '粗排候选', key: 'coarse' },
     { label: '精排', key: 'reranked' },
@@ -389,7 +418,7 @@ const funnelRows = computed(() => {
 })
 
 const stageChips = computed(() => {
-  const stages = searchStages.value || {}
+  const stages = searchStages.value
   const chips = []
   if (typeof stages.rewrite === 'number') chips.push({ text: `改写 ${stages.rewrite} 条子查询` })
   if (typeof stages.recall_paths === 'number') chips.push({ text: `${stages.recall_paths} 路混合召回` })
@@ -410,8 +439,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   sidebarObserver?.disconnect?.()
   window.removeEventListener('resize', updateSidebarHeight)
-  consoleController?.abort()
-  chatController?.abort()
+  releaseAll()
 })
 
 function persist() { saveSettings(settings) }
@@ -424,31 +452,31 @@ function updateSidebarHeight() {
   sidebar.style.setProperty('--sidebar-height', `${height}px`)
 }
 
-// 刷新即放弃上一轮：连点刷新时旧请求回来得晚，会把上一轮数据盖回界面上
-let consoleController = null
-let chatController = null
-
-async function refreshConsole() {
-  consoleController?.abort()
+/* 每个读数一把控制器：begin 会作废上一轮，所以 signal.aborted 就等于"我已经不是最新一轮"。
+   被作废的那轮既不写值也不清空，否则连点刷新、或发完消息补一次 /monitor 时，
+   迟到的失败会把刚拿到的好数据盖成空的。 */
+const inflight = {}
+function begin(key) {
+  inflight[key]?.abort()
   const controller = new AbortController()
-  consoleController = controller
-  const { signal } = controller
-  await Promise.allSettled([
-    checkHealth(signal),
-    loadStats(signal),
-    loadMonitor(signal),
-    loadSkills(signal)
-  ])
+  inflight[key] = controller
+  return controller.signal
 }
 
-async function checkHealth(signal) {
+async function refreshConsole() {
+  await Promise.allSettled([checkHealth(), loadStats(), loadMonitor(), loadSkills()])
+}
+
+async function checkHealth() {
+  const signal = begin('health')
   try {
     const data = await requestHealth(signal)
+    if (signal.aborted) return
     healthDeps.value = data.dependencies
     healthOk.value = data.status === 'ok'
     healthLabel.value = data.unhealthy.length ? `${data.status} · ${data.unhealthy.length} 项降级` : data.status
   } catch (error) {
-    if (error.cancelled) return
+    if (signal.aborted || error.cancelled) return
     healthOk.value = false
     healthLabel.value = '不可用'
     healthDeps.value = []
@@ -456,38 +484,45 @@ async function checkHealth(signal) {
   }
 }
 
-async function loadStats(signal) {
+async function loadStats() {
+  const signal = begin('stats')
   try {
     const data = await requestKnowledgeStats(signal)
-    knowledgeCount.value = data.total_chunks ?? '-'
+    if (!signal.aborted) knowledgeCount.value = data.total_chunks
   } catch {
-    knowledgeCount.value = '-'
+    // 读数保持上一次的值
   }
 }
 
-async function loadMonitor(signal) {
+async function loadMonitor() {
+  const signal = begin('monitor')
   try {
-    monitorData.value = await requestMonitor(signal)
-  } catch (error) {
-    if (!error.cancelled) monitorData.value = { agent_stats: {}, tool_stats: {} }
+    const data = await requestMonitor(signal)
+    if (!signal.aborted) monitorData.value = data
+  } catch {
+    // 失败不清空：/monitor 挂了只是没有新数据，把上一次的读数抹成 0 更误导
   }
 }
 
-async function loadSkills(signal) {
+async function loadSkills() {
+  const signal = begin('skills')
   try {
-    skillsData.value = await requestSkills(signal)
-  } catch (error) {
-    if (!error.cancelled) skillsData.value = { skills: [] }
+    const data = await requestSkills(signal)
+    if (!signal.aborted) skillsData.value = data
+  } catch {
+    // 同上
   }
 }
 
 async function reloadSkillSet() {
   busy.value = true
+  const signal = begin('skills')
   try {
-    skillsData.value = await reloadSkills()
+    const data = await reloadSkills(signal)
+    if (!signal.aborted) skillsData.value = data
     showToast('Skills 已重新加载')
   } catch (error) {
-    showToast(`Skills 加载失败：${error.message}`)
+    if (!signal.aborted) showToast(`Skills 加载失败：${error.message}`)
   } finally { busy.value = false }
 }
 
@@ -506,7 +541,7 @@ async function sendMessage() {
       persist()
     }
     lastResponse.value = response
-    const meta = [response.intent, response.primaryAgent || response.agentType, response.knowledgeUsed ? 'RAG' : '', response.escalated ? '转人工' : ''].filter(Boolean).join(' · ')
+    const meta = [response.intent, response.primaryAgent, response.knowledgeUsed ? 'RAG' : '', response.escalated ? '转人工' : ''].filter(Boolean).join(' · ')
     messages.value.push({
       id: createMessageId(),
       role: 'assistant',
@@ -548,9 +583,13 @@ function clearConversation() {
 }
 
 async function searchKnowledge() {
+  // 函数内收口：按钮的 disabled 挡不住输入框的回车
+  if (busy.value || !searchQuery.value.trim()) return
   busy.value = true
+  const signal = begin('search')
   try {
-    const data = await requestSearch(searchQuery.value, 5)
+    const data = await requestSearch(searchQuery.value, signal)
+    if (signal.aborted) return
     searchResults.value = data.results
     searchStages.value = data.stages
     searchDegraded.value = data.degraded
@@ -562,6 +601,7 @@ async function searchKnowledge() {
       showToast(`检索完成，返回 ${data.results.length} 条结果${data.degraded ? '（已降级）' : ''}`)
     }
   } catch (error) {
+    if (signal.aborted) return
     searchResults.value = []
     searchStages.value = {}
     searchDegraded.value = false
@@ -574,8 +614,8 @@ async function searchKnowledge() {
 async function submitKnowledge() {
   busy.value = true
   try {
-    await addKnowledge([{ title: docTitle.value.trim(), content: docContent.value.trim() }])
-    await loadStats()
+    const data = await addKnowledge([{ title: docTitle.value.trim(), content: docContent.value.trim() }])
+    knowledgeCount.value = data.total_chunks
     showToast('文档已添加')
   } catch (error) {
     showToast(`文档导入失败：${error.message}`)
@@ -588,17 +628,27 @@ async function handleUpload(event) {
   if (!file) return
   busy.value = true
   try {
-    await uploadKnowledge(file)
-    await loadStats()
+    const data = await uploadKnowledge(file)
+    knowledgeCount.value = data.total_chunks
     showToast(`${file.name} 导入成功`)
   } catch (error) {
     showToast(`文件导入失败：${error.message}`)
   } finally { busy.value = false }
 }
 
+async function copyRequestId() {
+  try {
+    await navigator.clipboard.writeText(lastResponse.value.requestId)
+    copied.value = true
+    clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => { copied.value = false }, 1600)
+  } catch {
+    showToast('复制失败，浏览器未授权剪贴板')
+  }
+}
+
 function formatPercent(value) {
-  const number = Number(value || 0)
-  return `${(number <= 1 ? number * 100 : number).toFixed(1)}%`
+  return `${(value * 100).toFixed(1)}%`
 }
 
 function createMessageId() {
@@ -610,5 +660,12 @@ function showToast(message) {
   toast.value = message
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toast.value = '' }, 2600)
+}
+
+function releaseAll() {
+  clearTimeout(toastTimer)
+  clearTimeout(copyTimer)
+  chatController?.abort()
+  Object.values(inflight).forEach(controller => controller?.abort())
 }
 </script>

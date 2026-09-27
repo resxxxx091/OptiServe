@@ -31,3 +31,5 @@ logs/
 # AI
 .superpowers/
 hht
+
+.ruff_cache

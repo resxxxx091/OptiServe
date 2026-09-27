@@ -402,7 +402,8 @@ async def chat(req: ChatRequest):
     from agents.agent_orchestrator import Request as OrcReq
     from memory.conversation_memory import MsgRole
 
-    # trace_id 就是响应里的 request_id：同一次请求在日志和 Langfuse 里是同一个键
+    # request_id 是本次请求的关联键；Langfuse 的 trace_id 由它 seed 派生，两者不相等，
+    # 所以要靠下面 tr.meta 里的 request_id 才能在 Langfuse 检索到这条 trace。
     request_id = str(uuid.uuid4())[:8]
 
     # 一次请求一条 span 树。记忆读取与意图识别在 orchestrator.run() 外面，
@@ -452,6 +453,9 @@ async def chat(req: ChatRequest):
             # 5. 用户画像异步更新：挪出 with 块后再 spawn，见函数末尾
 
             tr.meta.update(
+                request_id=result.request_id,
+                user_id=req.user_id,
+                conv_id=conv_id,
                 degradations=[event.as_dict() for event in degraded],
                 agent_type=result.agent_type.value,
                 primary_agent=result.primary_agent.value if result.primary_agent else "",

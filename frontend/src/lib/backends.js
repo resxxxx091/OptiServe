@@ -1,5 +1,18 @@
 export const API_BASE = String(import.meta.env.VITE_PYTHON_API_URL || '/api/python').replace(/\/+$/, '')
 
+/* 检索只有一处 top_k：界面文案和请求参数都读它。 */
+export const SEARCH_TOP_K = 5
+
+/* Langfuse 项目首页，形如 https://<host>/project/<projectId>；留空则界面不出跳转链接。
+   只到项目页不到单条 trace：trace_id 由 request_id seed 派生（后端 create_trace_id），
+   前端拿不到也没法反推，精确深链得后端回传那个 32 位 ID。 */
+export const LANGFUSE_PROJECT_URL = String(import.meta.env.VITE_LANGFUSE_PROJECT_URL || '').replace(/\/+$/, '')
+
+/* 用户 ID 空值口径只有一个：界面链接和 /chat 请求体都走它，否则 Langfuse 筛不到。 */
+export function chatUserId(settings) {
+  return settings.userId || 'anonymous'
+}
+
 const SETTINGS_KEY = 'optiserve.frontend.settings'
 
 /* 这一层只是最外层保险：必须大于后端的对应预算，否则后端还没来得及降级、界面先报错。
@@ -36,16 +49,16 @@ export function requestSkills(signal) {
   return requestJson('/skills', { signal })
 }
 
-export function reloadSkills() {
-  return requestJson('/skills/reload', { method: 'POST', timeoutMs: TIMEOUT.write })
+export function reloadSkills(signal) {
+  return requestJson('/skills/reload', { method: 'POST', signal, timeoutMs: TIMEOUT.write })
 }
 
 export function requestKnowledgeStats(signal) {
   return requestJson('/knowledge/stats', { signal })
 }
 
-export function requestSearch(query, topK = 5, signal) {
-  const params = new URLSearchParams({ query, top_k: String(topK) })
+export function requestSearch(query, signal) {
+  const params = new URLSearchParams({ query, top_k: String(SEARCH_TOP_K) })
   return requestJson(`/search?${params}`, { method: 'POST', signal, timeoutMs: TIMEOUT.search }).then(
     normalizeSearchResponse
   )
@@ -57,7 +70,7 @@ export function requestChat(settings, message, signal) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message,
-      user_id: settings.userId || 'anonymous',
+      user_id: chatUserId(settings),
       conv_id: settings.conversationId || undefined
     }),
     signal,
@@ -80,22 +93,23 @@ export function uploadKnowledge(file) {
   return requestJson('/knowledge/upload', { method: 'POST', body: form, timeoutMs: TIMEOUT.write })
 }
 
+/* 只做 snake_case → camelCase 改名：/chat 挂了 response_model=ChatResponse，
+   200 响应里每个字段都必在且类型已定，这里再兜一层只会把契约问题咽掉。 */
 function normalizeChatResponse(raw) {
-  const degradations = normalizeDegradations(raw.degradations)
   return {
-    conversationId: raw.conv_id || '',
-    response: raw.response || '',
-    intent: raw.intent || 'other',
-    agentType: raw.agent_type || '',
-    primaryAgent: raw.primary_agent || '',
-    routingReason: raw.routing_reason || '',
-    routingConfidence: Number(raw.routing_confidence ?? 0),
-    escalated: Boolean(raw.escalated),
-    latencyMs: Number(raw.latency_ms ?? 0),
-    knowledgeUsed: Boolean(raw.knowledge_used),
-    degradations,
-    degraded: Boolean(raw.degraded),
-    raw
+    requestId: raw.request_id,
+    conversationId: raw.conv_id,
+    response: raw.response,
+    intent: raw.intent,
+    primaryAgent: raw.primary_agent,
+    toolsUsed: raw.tools_used,
+    routingReason: raw.routing_reason,
+    routingConfidence: raw.routing_confidence,
+    escalated: raw.escalated,
+    latencyMs: raw.latency_ms,
+    knowledgeUsed: raw.knowledge_used,
+    degradations: raw.degradations,
+    degraded: raw.degraded
   }
 }
 
@@ -121,14 +135,6 @@ function normalizeHealthResponse(raw) {
     dependencies,
     unhealthy: dependencies.filter(item => item.state !== 'ok')
   }
-}
-
-function normalizeDegradations(events) {
-  return (events || []).map(event => ({
-    source: event?.source || '',
-    code: event?.code || '',
-    message: event?.message || ''
-  }))
 }
 
 async function requestJson(path, options = {}) {
