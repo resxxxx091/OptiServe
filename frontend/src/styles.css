@@ -1,5 +1,5 @@
-/* OptiServe 调试工作台 — Ops Terminal 方向
-   单一动作色（青）承担交互，彩色只用于状态语义 */
+/* OptiServe 调试工作台 — Dracula 配色
+   紫（Purple）作动作色，青/粉/黄/橙按语义分工 */
 
 :root {
   color-scheme: dark;
@@ -18,39 +18,40 @@
   --fw-label: 500;
   --fw-strong: 600;
 
-  /* ---- 层级：蓝黑实底，无渐变无 glow ---- */
-  --bg: #0a0e14;
-  --bg-soft: #0d121a;
-  --panel: #10161f;
-  --panel-2: #161e29;
-  --panel-3: #1c2635;
-  --line: rgba(230, 237, 243, 0.07);
-  --line-strong: rgba(230, 237, 243, 0.14);
+  /* ---- 层级：Dracula Background #282a36 + Selection #44475a，无渐变无 glow ---- */
+  --bg: #282a36;
+  --bg-soft: #21222c;
+  --panel: #2d2f3d;
+  --panel-2: #383b4c;
+  --panel-3: #44475a;
+  --line: rgba(248, 248, 242, 0.08);
+  --line-strong: rgba(248, 248, 242, 0.16);
 
-  /* ---- 文字（对 panel 实测 5.30:1 起） ---- */
-  --text: #e6edf3;
-  --text-soft: #9ba7b8;
-  --muted: #7e8c9e;
+  /* ---- 文字：Dracula Foreground；muted 是 Comment 蓝灰提亮后的读数 ---- */
+  --text: #f8f8f2;
+  --text-soft: #cfd3e8;
+  --muted: #9aa5ce;
 
-  /* ---- 动作色：全站只有青蓝参与交互态 ---- */
-  --accent: #3ac8d8;
-  --accent-hover: #56d5e3;
-  --accent-soft: rgba(58, 200, 216, 0.12);
-  --accent-line: rgba(58, 200, 216, 0.38);
-  --accent-fg: #04212a;
+  /* ---- 动作色：Purple ---- */
+  --accent: #bd93f9;
+  --accent-hover: #ca9cff;
+  --accent-active: #9b6ee0;
+  --accent-soft: rgba(189, 147, 249, 0.14);
+  --accent-line: rgba(189, 147, 249, 0.42);
+  --accent-fg: #1e1f29;
 
   /* ---- 状态色 ---- */
-  --ok: #3fbf63;
-  --ok-soft: rgba(63, 191, 99, 0.12);
-  --warn: #e0a93b;
-  --warn-soft: rgba(224, 169, 59, 0.12);
-  --err: #f26d6d;
-  --err-soft: rgba(242, 109, 109, 0.13);
-  --info: #58a6ff;
+  --ok: #50fa7b;
+  --ok-soft: rgba(80, 250, 123, 0.13);
+  --warn: #ffb86c;
+  --warn-soft: rgba(255, 184, 108, 0.14);
+  --err: #ff5555;
+  --err-soft: rgba(255, 85, 85, 0.15);
+  --info: #8be9fd;
 
   /* ---- 状态点缀色：路由说明、检索结果等块的左边线 ---- */
-  --kind-agent: #a371f7;
-  --kind-rag: #e0a93b;
+  --kind-agent: #ff79c6;
+  --kind-rag: #f1fa8c;
 
   /* ---- 尺度 ---- */
   --radius-sm: 6px;
@@ -105,7 +106,7 @@ button {
 }
 
 button:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
-button:active:not(:disabled) { background: #2fb2c1; }
+button:active:not(:disabled) { background: var(--accent-active); }
 button:disabled { cursor: not-allowed; opacity: 0.4; }
 
 button:focus-visible,
@@ -131,7 +132,7 @@ input, textarea {
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 
-input:hover, textarea:hover { border-color: rgba(230, 237, 243, 0.22); }
+input:hover, textarea:hover { border-color: rgba(248, 248, 242, 0.22); }
 input:focus, textarea:focus { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-soft); }
 input:disabled, textarea:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -159,8 +160,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 /* 细滚动条：高信息密度面板需要可见的滚动线索 */
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(230, 237, 243, 0.12); border-radius: 99px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(230, 237, 243, 0.2); }
+*::-webkit-scrollbar-thumb { background: var(--panel-3); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: #6272a4; }
 
 /* ===================== 顶栏 ===================== */
 
@@ -255,7 +256,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   transition: background-color var(--dur) var(--ease);
 }
 
-.view-nav button:hover:not(:disabled)::after { background: rgba(230, 237, 243, 0.16); }
+.view-nav button:hover:not(:disabled)::after { background: rgba(248, 248, 242, 0.16); }
 
 .view-nav button.active {
   background: transparent;
@@ -305,8 +306,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 .environment-pill i.offline { background: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
 .environment-pill i.degraded { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
 
-.environment-pill:has(.online) { border-color: rgba(63, 191, 99, 0.3); }
-.environment-pill:has(.offline) { border-color: rgba(242, 109, 109, 0.32); }
+.environment-pill:has(.online) { border-color: color-mix(in srgb, var(--ok) 32%, transparent); }
+.environment-pill:has(.offline) { border-color: color-mix(in srgb, var(--err) 35%, transparent); }
 .environment-pill:has(.degraded) { border-color: color-mix(in srgb, var(--warn) 32%, transparent); }
 
 .docs-link {
@@ -610,7 +611,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .message.user {
   border-left-color: var(--info);
-  background: rgba(88, 166, 255, 0.045);
+  background: rgba(139, 233, 253, 0.05);
 }
 
 .message.assistant { border-left-color: var(--accent); }

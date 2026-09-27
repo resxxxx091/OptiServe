@@ -3,7 +3,7 @@
     <header class="topbar">
       <a class="brand" href="#" aria-label="OptiServe 首页" @click.prevent="activeView = 'chat'">
         <span class="brand-mark">OS</span>
-        <span class="brand-name">OptiServe<small>调试工作台</small></span>
+        <span class="brand-name">OptiServe<small>调试页面</small></span>
       </a>
 
       <nav class="view-nav" aria-label="工作区">
