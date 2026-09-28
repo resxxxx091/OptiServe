@@ -24,17 +24,88 @@
           </svg>
           API 文档
         </a>
-        <button class="avatar-button" title="当前用户">{{ userInitial }}</button>
+        <button
+          class="icon-button"
+          :class="{ active: settingsOpen }"
+          title="设置"
+          aria-label="设置"
+          :aria-expanded="settingsOpen"
+          aria-haspopup="dialog"
+          @click="toggleSettings"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.2" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke-linejoin="round" />
+          </svg>
+        </button>
       </div>
     </header>
 
-    <div v-if="toast" class="toast" role="status">{{ toast }}</div>
+    <Transition name="toast">
+      <div v-if="toast" class="toast" role="status">{{ toast }}</div>
+    </Transition>
+
+    <Transition name="modal">
+      <div v-if="settingsOpen" class="modal-backdrop" @click.self="settingsOpen = false">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header class="modal-head">
+          <h2 id="settings-title">设置</h2>
+          <button class="icon-button" aria-label="关闭设置" @click="settingsOpen = false">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="modal-body">
+          <section class="modal-section">
+            <div class="card-heading">
+              <h3>身份与会话</h3>
+              <span class="status-copy muted">写入 localStorage</span>
+            </div>
+            <label>
+              <span>用户 ID</span>
+              <input ref="userIdInput" v-model="settings.userId" @change="persist" placeholder="u1001" />
+            </label>
+            <label>
+              <span>会话 ID</span>
+              <input v-model="settings.conversationId" @change="persist" placeholder="留空则每次新生成" />
+            </label>
+            <label>
+              <span>访问令牌</span>
+              <input v-model="settings.apiToken" @change="persist" type="password" placeholder="留空则写入类操作会被后端拒绝" />
+            </label>
+          </section>
+
+          <section class="modal-section">
+            <div class="card-heading">
+              <h3>后端与请求</h3>
+              <code>只读</code>
+            </div>
+            <dl class="detail-list">
+              <div><dt>API 基址</dt><dd>{{ API_BASE }}</dd></div>
+              <div><dt>检索 top_k</dt><dd>{{ SEARCH_TOP_K }}</dd></div>
+              <div><dt>读超时</dt><dd>{{ TIMEOUT.read / 1000 }} s</dd></div>
+              <div><dt>检索超时</dt><dd>{{ TIMEOUT.search / 1000 }} s</dd></div>
+              <div><dt>写入超时</dt><dd>{{ TIMEOUT.write / 1000 }} s</dd></div>
+              <div><dt>对话超时</dt><dd>{{ TIMEOUT.chat / 1000 }} s</dd></div>
+              <div><dt>Langfuse</dt><dd>{{ LANGFUSE_PROJECT_URL || '未配置' }}</dd></div>
+            </dl>
+            <p class="modal-note">
+              只读项分别来自 <code>src/lib/backends.js</code> 与 <code>VITE_PYTHON_API_URL</code> /
+              <code>VITE_LANGFUSE_PROJECT_URL</code>，改完要重启 dev server。
+            </p>
+          </section>
+        </div>
+      </section>
+    </div>
+    </Transition>
 
     <section v-if="activeView === 'chat'" class="page page-chat">
       <div class="page-heading">
         <div>
           <span class="kicker">POST /chat</span>
-          <h1>和客服 Agent 对话</h1>
+          <h1>和运营服务 Agent 对话</h1>
           <p>发送一条真实请求，查看它如何识别意图、选择 Agent 并生成回复。</p>
         </div>
         <div class="heading-actions">
@@ -46,11 +117,8 @@
       <div class="chat-layout">
         <section class="chat-stage">
           <div class="stage-bar">
-            <div class="stage-context">
-              <span class="context-dot"></span>
-              <span>{{ API_BASE }}</span>
-            </div>
             <span>{{ messages.length }} 条消息</span>
+            <button v-if="busy" class="quiet-button" @click="cancelChat">取消</button>
           </div>
 
           <div class="messages" ref="messageList">
@@ -62,6 +130,7 @@
               <div class="message-meta">
                 <span>{{ item.role === 'user' ? 'user' : 'agent' }}</span>
                 <small v-if="item.meta">{{ item.meta }}</small>
+                <small v-if="item.time" class="msg-time">{{ item.time }}</small>
                 <em v-if="item.degraded" class="degraded-tag">DEGRADED {{ item.degradations?.length }}</em>
               </div>
               <p>{{ item.content }}</p>
@@ -73,40 +142,36 @@
               </ul>
             </article>
 
-            <div v-if="messages.length === 0" class="empty-state">
+            <div v-if="busy" class="message assistant typing-row" aria-live="polite">
+              <div class="message-meta"><span>agent</span><small>处理中</small></div>
+              <div class="typing-dots"><i></i><i></i><i></i></div>
+            </div>
+
+            <div v-if="messages.length === 0 && !busy" class="empty-state">
               <div class="empty-symbol">
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                   <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v7a1.5 1.5 0 0 1-1.5 1.5H8l-4 3v-3H4.5A1.5 1.5 0 0 1 3 12.5z" stroke-linejoin="round" />
                   <path d="M6.5 7.5h7M6.5 10.5h4.5" stroke-linecap="round" />
                 </svg>
               </div>
-              <h2>从一个客户问题开始</h2>
-              <p>下面的快捷问题只是起点，你也可以直接输入自己的测试用例。</p>
-              <div class="starter-prompts">
-                <button @click="usePrompt('我想申请退款，订单号是 #12345')">退款申请</button>
-                <button @click="usePrompt('登录时提示错误，应该怎么排查？')">技术排查</button>
-                <button @click="usePrompt('发票多久可以开具？')">发票咨询</button>
+              <h2>有什么我能帮你的吗？</h2>
+              <p>从下面的示例开始，或直接输入你的问题。</p>
+              <div class="quick-prompts">
+                <button v-for="prompt in quickPrompts" :key="prompt" class="quick-prompt" @click="applyPrompt(prompt)">
+                  {{ prompt }}
+                </button>
               </div>
             </div>
           </div>
 
           <form class="composer" @submit.prevent="sendMessage">
             <textarea
+              ref="draftInput"
               v-model="draft"
               rows="3"
               placeholder="输入消息..."
-              @keydown.meta.enter.prevent="sendMessage"
-              @keydown.ctrl.enter.prevent="sendMessage"
+              @keydown.enter.exact="handleComposerEnter"
             ></textarea>
-            <div class="composer-bottom">
-              <span class="composer-hint">
-                <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 发送
-              </span>
-              <div class="composer-actions">
-                <button v-if="busy" class="quiet-button" @click="cancelChat">取消</button>
-                <button type="submit" :disabled="busy || !draft.trim()">{{ busy ? '处理中' : '发送' }}</button>
-              </div>
-            </div>
           </form>
         </section>
 
@@ -126,32 +191,6 @@
                   <span>用户 ID</span>
                   <strong>{{ settings.userId || 'anonymous' }}</strong>
                 </div>
-              </div>
-            </section>
-
-            <section class="side-card connection-card">
-              <div class="card-heading">
-                <h2>连接配置</h2>
-                <!-- 有读数时报条数；拿不到时退回健康文案，别在探测失败后谎称「未检查」 -->
-                <span class="status-copy" :class="healthOk ? 'success' : 'muted'">
-                  {{ healthDeps.length ? `${healthDeps.length} 项依赖` : healthLabel }}
-                </span>
-              </div>
-
-              <label>
-                <span>用户 ID</span>
-                <input v-model="settings.userId" @change="persist" placeholder="u1001" />
-              </label>
-              <label>
-                <span>会话 ID</span>
-                <input v-model="settings.conversationId" @change="persist" placeholder="自动生成" />
-              </label>
-              <label>
-                <span>访问令牌</span>
-                <input v-model="settings.apiToken" @change="persist" type="password" placeholder="留空则写入类操作会被后端拒绝" />
-              </label>
-              <div class="side-actions">
-                <button class="quiet-button" @click="refreshConsole">刷新</button>
               </div>
             </section>
 
@@ -196,6 +235,13 @@
             <section class="side-card">
               <div class="card-heading">
                 <h2>运行状态</h2>
+                <div class="heading-actions">
+                  <!-- 有读数时报条数；拿不到时退回健康文案，别在探测失败后谎称「未检查」 -->
+                  <span class="status-copy" :class="healthOk ? 'success' : 'muted'">
+                    {{ healthDeps.length ? `${healthDeps.length} 项依赖` : healthLabel }}
+                  </span>
+                  <button class="link-button" @click="refreshConsole">刷新</button>
+                </div>
               </div>
               <div class="mini-stats">
                 <div><strong>{{ totalRequests }}</strong><span>请求</span></div>
@@ -222,7 +268,7 @@
         <div>
           <span class="kicker">POST /search</span>
           <h1>知识库</h1>
-          <p>搜索、补充和维护客服 Agent 使用的知识片段。</p>
+          <p>搜索、补充和维护运营服务 Agent 使用的知识片段。</p>
         </div>
         <div class="count-display"><strong>{{ knowledgeCount }}</strong><span>chunks</span></div>
       </div>
@@ -309,6 +355,7 @@ import {
   API_BASE,
   LANGFUSE_PROJECT_URL,
   SEARCH_TOP_K,
+  TIMEOUT,
   addKnowledge,
   chatUserId,
   createInitialSettings,
@@ -325,6 +372,8 @@ import {
 
 const settings = reactive(createInitialSettings())
 const activeView = ref('chat')
+const settingsOpen = ref(false)
+const userIdInput = ref(null)
 const messages = ref([])
 const draft = ref('')
 const busy = ref(false)
@@ -342,6 +391,7 @@ const docTitle = ref('退款补充政策')
 const docContent = ref('大促期间退款审核时间可能延长到 3-5 个工作日。')
 const messageList = ref(null)
 const sidebarRef = ref(null)
+const draftInput = ref(null)
 /* 初值就按 /monitor 的契约形状给全：三个键后端恒返回，读到空壳而不是 undefined，
    下面就不必为"还没刷过"再兜一层。 */
 const monitorData = ref({ agent_stats: {}, tool_stats: {}, routing: { agents: {}, demote_threshold: 0 } })
@@ -356,7 +406,13 @@ let sidebarObserver
 let chatController = null
 
 const docsUrl = computed(() => `${API_BASE}/docs`)
-const userInitial = computed(() => (settings.userId || 'U').slice(0, 1).toUpperCase())
+
+/* 空态示例：让首屏有可点的入口，点击即填入输入框 */
+const quickPrompts = [
+  '退款多久能到账？',
+  '发票怎么开具？',
+  '物流地址可以修改吗？'
+]
 const agentCount = computed(() => Object.keys(monitorData.value.agent_stats).length)
 const toolCount = computed(() => Object.keys(monitorData.value.tool_stats).length)
 const totalRequests = computed(() => Object.values(monitorData.value.agent_stats).reduce((sum, item) => sum + item.total, 0))
@@ -434,22 +490,34 @@ onMounted(() => {
     if (sidebarRef.value) sidebarObserver.observe(sidebarRef.value)
   }
   window.addEventListener('resize', updateSidebarHeight)
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 
 onBeforeUnmount(() => {
   sidebarObserver?.disconnect?.()
   window.removeEventListener('resize', updateSidebarHeight)
+  window.removeEventListener('keydown', onGlobalKeydown)
   releaseAll()
 })
 
 function persist() { saveSettings(settings) }
 
+function toggleSettings() {
+  settingsOpen.value = !settingsOpen.value
+  if (settingsOpen.value) nextTick(() => userIdInput.value?.focus())
+}
+
+function onGlobalKeydown(event) {
+  if (event.key === 'Escape' && settingsOpen.value) settingsOpen.value = false
+}
+
+/* 侧栏高度钉成所在行高：行内放不下时走内部滚动。
+   不能量侧栏自身——它的兜底高度就是视口推导值，量到什么写回什么，底部卡片会被裁出视口。 */
 function updateSidebarHeight() {
   const sidebar = sidebarRef.value
   if (!sidebar) return
-  const rect = sidebar.getBoundingClientRect()
-  const height = Math.max(320, Math.floor(rect.height))
-  sidebar.style.setProperty('--sidebar-height', `${height}px`)
+  const available = sidebar.parentElement.clientHeight
+  sidebar.style.setProperty('--sidebar-height', `${Math.max(320, Math.floor(available))}px`)
 }
 
 /* 每个读数一把控制器：begin 会作废上一轮，所以 signal.aborted 就等于"我已经不是最新一轮"。
@@ -526,10 +594,17 @@ async function reloadSkillSet() {
   } finally { busy.value = false }
 }
 
+/* 中文输入法下 Enter 先用于选词上屏：isComposing / keyCode 229 时不拦截，让组合正常完成 */
+function handleComposerEnter(event) {
+  if (event.isComposing || event.keyCode === 229) return
+  event.preventDefault()
+  sendMessage()
+}
+
 async function sendMessage() {
   const content = draft.value.trim()
   if (!content || busy.value) return
-  messages.value.push({ id: createMessageId(), role: 'user', content })
+  messages.value.push({ id: createMessageId(), role: 'user', content, time: formatTime() })
   draft.value = ''
   busy.value = true
   const controller = new AbortController()
@@ -547,6 +622,7 @@ async function sendMessage() {
       role: 'assistant',
       content: response.response,
       meta,
+      time: formatTime(),
       degraded: response.degraded,
       degradations: response.degradations
     })
@@ -557,6 +633,7 @@ async function sendMessage() {
       role: 'assistant',
       content: error.cancelled ? '已取消这次请求。' : error.message,
       meta: error.cancelled ? '已取消' : error.timedOut ? '请求超时' : '请求失败',
+      time: formatTime(),
       degraded: false,
       degradations: []
     })
@@ -573,7 +650,10 @@ function cancelChat() {
   chatController?.abort()
 }
 
-function usePrompt(prompt) { draft.value = prompt }
+function applyPrompt(text) {
+  draft.value = text
+  draftInput.value?.focus()
+}
 
 function clearConversation() {
   messages.value = []
@@ -654,6 +734,11 @@ function formatPercent(value) {
 function createMessageId() {
   messageSequence += 1
   return `message-${Date.now()}-${messageSequence}`
+}
+
+/* 调试工作台的时间戳只到秒：对日志足够，也不挤占 meta 行 */
+function formatTime() {
+  return new Date().toLocaleTimeString('zh-CN', { hour12: false })
 }
 
 function showToast(message) {

@@ -17,7 +17,7 @@ const SETTINGS_KEY = 'optiserve.frontend.settings'
 
 /* 这一层只是最外层保险：必须大于后端的对应预算，否则后端还没来得及降级、界面先报错。
    后端预算是 RETRIEVAL_TOTAL_TIMEOUT_S=45s、OPTISERVE_AGENT_LOOP_TIMEOUT_S=90s。 */
-const TIMEOUT = {
+export const TIMEOUT = {
   read: 10000,
   search: 60000,
   write: 120000,
