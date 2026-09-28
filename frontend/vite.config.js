@@ -5,6 +5,8 @@ const target = process.env.VITE_PYTHON_API_URL || 'http://localhost:8000'
 
 export default defineConfig({
   plugins: [vue()],
+  // .env 与前后端平级放在仓库根目录，前后端共用一份
+  envDir: '..',
   server: {
     port: 5173,
     proxy: {

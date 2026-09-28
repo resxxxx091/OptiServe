@@ -560,7 +560,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   gap: var(--sp-2);
 }
 
-.session-label, .count-display span {
+.count-display span {
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -661,13 +661,22 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   font-weight: var(--fw-label);
 }
 
-.side-actions {
-  display: flex;
+/* 添加知识：动作按钮贴在内容输入右侧，与上方检索卡的搜索框同款版式 */
+.add-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--sp-2);
-  margin-top: var(--sp-3);
+  align-items: stretch;
 }
 
-.side-actions > button, .side-actions > .upload-button { flex: 1; }
+.add-actions {
+  display: grid;
+  align-self: start;
+  gap: var(--sp-2);
+}
+
+/* .workspace-card label 的 margin-top 会漏进来，两个按钮间距归回 gap 一致 */
+.add-actions .upload-button { margin-top: 0; }
 
 /* ===================== 对话 ===================== */
 
@@ -709,6 +718,21 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 }
 
 .stage-bar .quiet-button { min-height: 24px; padding: 0 10px; font-size: 11px; }
+
+.stage-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+/* 自动生成的会话 ID 可能很长：截断展示，完整值放 title 悬停可看 */
+.stage-meta .meta-item {
+  overflow: hidden;
+  max-width: 24ch;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* 终端日志流版式：左侧导轨区分角色，取代气泡 */
 .messages {
@@ -911,6 +935,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 .composer {
   flex: 0 0 auto;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
   gap: var(--sp-2);
   padding: var(--sp-3);
   border-top: 1px solid var(--line);
@@ -920,6 +946,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 /* 输入热区：聚焦时顶边线随输入框一起点亮 */
 .composer:focus-within { border-top-color: var(--accent-line); }
+
+.composer-send { min-width: 76px; }
 
 .composer textarea {
   min-height: 72px;
@@ -955,34 +983,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .chat-sidebar .side-card { min-height: 0; overflow: hidden; flex: 0 0 auto; }
 
-.session-card, .trace-card { display: grid; gap: var(--sp-3); }
-
-.session-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.session-grid div {
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--bg-soft);
-}
-
-.session-grid span { display: block; color: var(--muted); font-size: 11px; }
-
-.session-grid strong {
-  display: block;
-  margin-top: 5px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: var(--fw-label);
-  word-break: break-all;
-}
-
-.trace-card { min-height: 0; display: flex; flex-direction: column; }
+.trace-card { min-height: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
 .trace-body { min-height: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
 .link-button { min-height: 26px; padding: 0 8px; border-radius: var(--radius-sm); font-size: 11px; text-decoration: none; }
 
@@ -1127,17 +1128,19 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   align-items: stretch;
 }
 
-.page-knowledge .knowledge-layout { margin-bottom: 0; }
+.page-knowledge .knowledge-layout { margin-bottom: 0; flex: 1 1 auto; }
 
-.skills-workspace { margin-top: 0; display: grid; gap: var(--sp-3); }
-.skills-workspace .skill-table { max-height: 360px; overflow: auto; padding-right: 4px; }
-.page-knowledge .workspace-card { min-height: 0; overflow: hidden; }
-
-.page-knowledge .skills-workspace {
-  margin-top: var(--sp-1);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--line);
+/* 两卡撑满页面高：卡内主内容区（结果列表 / 内容输入框）吃掉多余高度并可滚动 */
+.page-knowledge .workspace-card {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
+
+.page-knowledge .result-list { flex: 1 1 auto; overflow-y: auto; align-content: start; }
+
+.page-knowledge .add-line { flex: 1 1 auto; min-height: 0; }
 
 .search-line { display: flex; gap: var(--sp-2); }
 .search-line input { flex: 1; }
@@ -1297,6 +1300,11 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 .skill-item > span:not(.skill-dot), .skill-item small { color: var(--muted); font-size: 11px; }
 .skill-item small { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
+/* 侧栏窄版：能力名一行、描述换行，chars 收到右上角 */
+.skills-side .skill-item { grid-template-columns: 8px minmax(0, 1fr) auto; }
+.skills-side .skill-item > span:not(.skill-dot) { grid-column: 2 / 3; grid-row: 2; }
+.skills-side .skill-item small { grid-column: 3; grid-row: 1; }
+
 /* ===================== 响应式 ===================== */
 
 @media (max-width: 1120px) {
@@ -1322,7 +1330,9 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   .heading-actions { width: 100%; justify-content: space-between; }
   .chat-stage { min-height: 560px; height: auto; }
   .message { padding: 10px var(--sp-3); }
-  .search-line, .side-actions { flex-direction: column; }
+  .composer { grid-template-columns: 1fr; }
+  .search-line { flex-direction: column; }
+  .add-line { grid-template-columns: 1fr; }
   .search-line button { width: 100%; }
   .skill-item { grid-template-columns: 8px minmax(0, 1fr) auto; }
   .skill-item > span:not(.skill-dot) { grid-column: 2 / -1; grid-row: 2; }

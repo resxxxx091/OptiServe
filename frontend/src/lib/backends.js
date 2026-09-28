@@ -1,11 +1,8 @@
-export const API_BASE = String(import.meta.env.VITE_PYTHON_API_URL || '/api/python').replace(/\/+$/, '')
+// dev 下 /api/python 由 vite.config.js 的代理反代到本机后端
+export const API_BASE = '/api/python'
 
-/* 检索只有一处 top_k：界面文案和请求参数都读它。 */
-export const SEARCH_TOP_K = 5
-
-/* Langfuse 项目首页，形如 https://<host>/project/<projectId>；留空则界面不出跳转链接。
-   只到项目页不到单条 trace：trace_id 由 request_id seed 派生（后端 create_trace_id），
-   前端拿不到也没法反推，精确深链得后端回传那个 32 位 ID。 */
+/* Langfuse 项目页从根 .env 的 VITE_LANGFUSE_PROJECT_URL 读（跟着 Langfuse 三件套一起配）。
+   留空则界面不出跳转链接；只到项目页不到单条 trace：trace_id 由 request_id seed 派生（后端 create_trace_id）*/
 export const LANGFUSE_PROJECT_URL = String(import.meta.env.VITE_LANGFUSE_PROJECT_URL || '').replace(/\/+$/, '')
 
 /* 用户 ID 空值口径只有一个：界面链接和 /chat 请求体都走它，否则 Langfuse 筛不到。 */
@@ -15,13 +12,12 @@ export function chatUserId(settings) {
 
 const SETTINGS_KEY = 'optiserve.frontend.settings'
 
-/* 这一层只是最外层保险：必须大于后端的对应预算，否则后端还没来得及降级、界面先报错。
-   后端预算是 RETRIEVAL_TOTAL_TIMEOUT_S=45s、OPTISERVE_AGENT_LOOP_TIMEOUT_S=90s。 */
+// 前端这层只是最外层保险：各项必须大于对应的后端预算，否则后端还没降级完、界面先报超时。
 export const TIMEOUT = {
-  read: 10000,
+  read: 15000, 
   search: 60000,
   write: 120000,
-  chat: 150000
+  chat: 120000
 }
 
 export function createInitialSettings() {
@@ -58,7 +54,7 @@ export function requestKnowledgeStats(signal) {
 }
 
 export function requestSearch(query, signal) {
-  const params = new URLSearchParams({ query, top_k: String(SEARCH_TOP_K) })
+  const params = new URLSearchParams({ query })
   return requestJson(`/search?${params}`, { method: 'POST', signal, timeoutMs: TIMEOUT.search }).then(
     normalizeSearchResponse
   )

@@ -76,26 +76,6 @@
               <input v-model="settings.apiToken" @change="persist" type="password" placeholder="留空则写入类操作会被后端拒绝" />
             </label>
           </section>
-
-          <section class="modal-section">
-            <div class="card-heading">
-              <h3>后端与请求</h3>
-              <code>只读</code>
-            </div>
-            <dl class="detail-list">
-              <div><dt>API 基址</dt><dd>{{ API_BASE }}</dd></div>
-              <div><dt>检索 top_k</dt><dd>{{ SEARCH_TOP_K }}</dd></div>
-              <div><dt>读超时</dt><dd>{{ TIMEOUT.read / 1000 }} s</dd></div>
-              <div><dt>检索超时</dt><dd>{{ TIMEOUT.search / 1000 }} s</dd></div>
-              <div><dt>写入超时</dt><dd>{{ TIMEOUT.write / 1000 }} s</dd></div>
-              <div><dt>对话超时</dt><dd>{{ TIMEOUT.chat / 1000 }} s</dd></div>
-              <div><dt>Langfuse</dt><dd>{{ LANGFUSE_PROJECT_URL || '未配置' }}</dd></div>
-            </dl>
-            <p class="modal-note">
-              只读项分别来自 <code>src/lib/backends.js</code> 与 <code>VITE_PYTHON_API_URL</code> /
-              <code>VITE_LANGFUSE_PROJECT_URL</code>，改完要重启 dev server。
-            </p>
-          </section>
         </div>
       </section>
     </div>
@@ -109,7 +89,6 @@
           <p>发送一条真实请求，查看它如何识别意图、选择 Agent 并生成回复。</p>
         </div>
         <div class="heading-actions">
-          <span class="session-label">conv: {{ settings.conversationId || 'new' }}</span>
           <button class="quiet-button" @click="clearConversation">清空</button>
         </div>
       </div>
@@ -118,7 +97,15 @@
         <section class="chat-stage">
           <div class="stage-bar">
             <span>{{ messages.length }} 条消息</span>
-            <button v-if="busy" class="quiet-button" @click="cancelChat">取消</button>
+            <div class="stage-meta">
+              <span class="meta-item" :title="`会话 ID：${settings.conversationId || '自动生成'}`">
+                conv {{ settings.conversationId || 'new' }}
+              </span>
+              <span class="meta-item" :title="`用户 ID：${settings.userId || 'anonymous'}`">
+                user {{ settings.userId || 'anonymous' }}
+              </span>
+              <button v-if="busy" class="quiet-button" @click="cancelChat">取消</button>
+            </div>
           </div>
 
           <div class="messages" ref="messageList">
@@ -172,28 +159,14 @@
               placeholder="输入消息..."
               @keydown.enter.exact="handleComposerEnter"
             ></textarea>
+            <button type="submit" class="composer-send" :disabled="busy || !draft.trim()">
+              {{ busy ? '处理中' : '发送' }}
+            </button>
           </form>
         </section>
 
         <aside class="chat-sidebar" ref="sidebarRef">
           <div class="chat-sidebar-scroll">
-            <section class="side-card session-card">
-              <div class="card-heading">
-                <h2>会话信息</h2>
-                <span class="status-copy muted">{{ settings.conversationId ? '已启用' : '新会话' }}</span>
-              </div>
-              <div class="session-grid">
-                <div>
-                  <span>会话 ID</span>
-                  <strong>{{ settings.conversationId || '自动生成' }}</strong>
-                </div>
-                <div>
-                  <span>用户 ID</span>
-                  <strong>{{ settings.userId || 'anonymous' }}</strong>
-                </div>
-              </div>
-            </section>
-
             <section class="side-card trace-card">
               <div class="card-heading">
                 <h2>最近一次请求</h2>
@@ -258,6 +231,26 @@
                 <span v-for="chip in runtimeChips" :key="chip.key" :class="chip.tone" :title="chip.title">{{ chip.text }}</span>
               </div>
             </section>
+
+            <section class="side-card skills-side">
+              <div class="card-heading">
+                <h2>已加载能力 · {{ skillsData.skills.length }}</h2>
+                <button class="link-button" @click="reloadSkillSet">重新加载</button>
+              </div>
+              <div class="skill-table">
+                <div v-for="skill in skillsData.skills" :key="skill.name" class="skill-item">
+                  <span class="skill-dot"></span><strong>{{ skill.name }}</strong><span>{{ skill.description }}</span><small>{{ skill.content_chars }} chars</small>
+                </div>
+                <div v-if="!skillsData.skills.length" class="workspace-empty">暂无已加载 Skill。</div>
+              </div>
+              <!-- 解析失败后端只进日志和这个字段，界面上不列就永远看不到 -->
+              <ul v-if="skillsData.errors.length" class="degrade-list">
+                <li v-for="(error, index) in skillsData.errors" :key="`skill-error-${index}`">
+                  <code>skill</code>
+                  <span>{{ error }}</span>
+                </li>
+              </ul>
+            </section>
           </div>
         </aside>
       </div>
@@ -277,7 +270,6 @@
         <section class="workspace-card">
           <div class="card-heading">
             <h2>检索知识</h2>
-            <code>top_k {{ SEARCH_TOP_K }}</code>
           </div>
           <div class="search-line">
             <input v-model="searchQuery" placeholder="例如：退款多久到账" @keydown.enter="searchKnowledge" />
@@ -318,44 +310,25 @@
             <code>Milvus 混合索引</code>
           </div>
           <label><span>标题</span><input v-model="docTitle" placeholder="退款补充政策" /></label>
-          <label><span>内容</span><textarea v-model="docContent" rows="7" placeholder="输入客服规范、产品说明或排障流程"></textarea></label>
-          <div class="side-actions">
-            <button @click="submitKnowledge" :disabled="busy || !docTitle.trim() || !docContent.trim()">添加文档</button>
-            <label class="upload-button">上传文件<input type="file" accept=".txt,.md,.json" @change="handleUpload" /></label>
+          <label class="add-caption" for="doc-content">内容</label>
+          <div class="add-line">
+            <textarea id="doc-content" v-model="docContent" rows="7" placeholder="输入客服规范、产品说明或排障流程"></textarea>
+            <div class="add-actions">
+              <button @click="submitKnowledge" :disabled="busy || !docTitle.trim() || !docContent.trim()">添加文档</button>
+              <label class="upload-button">上传文件<input type="file" accept=".txt,.md,.json" @change="handleUpload" /></label>
+            </div>
           </div>
         </section>
       </div>
-
-      <section class="workspace-card skills-workspace">
-        <div class="card-heading">
-          <h2>已加载能力 · {{ skillsData.skills.length }}</h2>
-          <button class="link-button" @click="reloadSkillSet">重新加载</button>
-        </div>
-        <div class="skill-table">
-          <div v-for="skill in skillsData.skills" :key="skill.name" class="skill-item">
-            <span class="skill-dot"></span><strong>{{ skill.name }}</strong><span>{{ skill.description }}</span><small>{{ skill.content_chars }} chars</small>
-          </div>
-          <div v-if="!skillsData.skills.length" class="workspace-empty">暂无已加载 Skill。</div>
-        </div>
-        <!-- 解析失败后端只进日志和这个字段，界面上不列就永远看不到 -->
-        <ul v-if="skillsData.errors.length" class="degrade-list">
-          <li v-for="(error, index) in skillsData.errors" :key="`skill-error-${index}`">
-            <code>skill</code>
-            <span>{{ error }}</span>
-          </li>
-        </ul>
-      </section>
     </section>
   </main>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   API_BASE,
   LANGFUSE_PROJECT_URL,
-  SEARCH_TOP_K,
-  TIMEOUT,
   addKnowledge,
   chatUserId,
   createInitialSettings,
@@ -491,6 +464,17 @@ onMounted(() => {
   }
   window.addEventListener('resize', updateSidebarHeight)
   window.addEventListener('keydown', onGlobalKeydown)
+})
+
+/* 切走再切回时 v-if 重挂侧栏：内联高度变量随旧 DOM 一起销毁，新元素回落到兜底高度，
+   会把 chat 布局撑出视口；旧 observer 观察的也是已卸载的元素，必须重新观察并重算。 */
+watch(activeView, (view) => {
+  if (view !== 'chat') return
+  nextTick(() => {
+    sidebarObserver?.disconnect()
+    if (sidebarRef.value) sidebarObserver.observe(sidebarRef.value)
+    updateSidebarHeight()
+  })
 })
 
 onBeforeUnmount(() => {

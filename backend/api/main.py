@@ -40,7 +40,8 @@ if TYPE_CHECKING:
     # 只给类型检查器看，运行期这些类仍由 lifespan 内部按需导入
     from memory.conversation_memory import MemoryManager
 
-load_dotenv()
+# .env 与前后端平级放在仓库根目录，前后端共用一份；显式路径不依赖启动时的工作目录
+load_dotenv(pathlib.Path(__file__).resolve().parents[2] / ".env")
 
 logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO")),

@@ -2,7 +2,7 @@
 # 前后端不进容器——后端用本机 `uvicorn api/main.py`（工作目录 backend/）、前端用本机 `npm run dev`（工作目录 frontend/）。
 #
 # 启动（工作目录 = 本文件所在的 deploy/）：
-#   docker compose --env-file ../backend/.env up -d
+#   docker compose --env-file ../.env up -d
 
 name: optiserve
 
