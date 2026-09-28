@@ -7,7 +7,7 @@ OptiServe 启动时会从 `OPTISERVE_SKILLS_DIR` 读取 Skills。Skills 采用�
 当前内置四类 Skills，四条都带第三层：
 
 ```text
-skills/general-customer-service/
+skills/general-support/
 ├── SKILL.md
 ├── references/routing-map.md            # 现象→角色去向、转接前要总结的字段
 └── scripts/create_human_handoff.py      # 转人工受理
@@ -84,7 +84,7 @@ metadata:
 
 ## 编写要求
 
-- 一类 Skill 只描述一类职责，不要把技术、账单、通用客服规则混在一个文件里。
+- 一类 Skill 只描述一类职责，不要把技术、账单、通用运营接待规则混在一个文件里。
 - 正文建议控制在 500 行以内，超出就把附表拆到 `references/`；本项目对正文和附表都**不设字数上限**，体量完全靠编写者自觉。
 - 引用第三层文件用相对 `SKILL.md` 的路径，只引一层，且要和清单里的字符串逐字一致（`load_skill_resource` / `run_skill_script` 只容忍 `./` 前缀与反斜杠两种变体，裸文件名会被拒）。
 - 必须包含"角色定位""处理流程""升级条件""禁止事项"等稳定章节。

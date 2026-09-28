@@ -131,7 +131,7 @@ class ResponseComposer:
             for response in successful
         )
         prompt = (
-            "你是客服 Response Composer，负责把多个专业 Agent 的结果合并成一条最终回复。\n"
+            "你是运营服务 Response Composer，负责把多个专业 Agent 的结果合并成一条最终回复。\n"
             "要求：以主 Agent 的结论为主，按用户问题优先级组织内容；去掉重复和冲突表述；"
             "不能补造订单、退款、后台查询结果；如果结论冲突，明确说明需要核验；"
             "保留必要的排查步骤、核验字段和升级边界。只输出给用户看的中文回复，不要提及 Agent。\n\n"

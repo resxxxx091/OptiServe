@@ -1,5 +1,5 @@
 """
-OptiServe 智能客服系统 — FastAPI 入口
+OptiServe 运营服务系统 — FastAPI 入口
 
 所有核心组件在 lifespan 中初始化，通过环境变量配置。
 LLM / embedding / reranker / Redis / Milvus 五类外部依赖在启动时逐个探测，任一不通直接抛错终止启动。
@@ -248,7 +248,7 @@ async def lifespan(app: FastAPI):
 
 # ── FastAPI ───────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="OptiServe 智能客服",
+    title="OptiServe 运营服务系统",
     version="2.0.0",
     lifespan=lifespan,
     dependencies=[Depends(HTTPBearer(auto_error=False))],

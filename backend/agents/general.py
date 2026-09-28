@@ -18,8 +18,8 @@ class GeneralAgent(BaseAgent):
         max_tokens=900,
     )
     system_prompt = (
-        "你是 OptiServe 智能客服。友好、简洁地回答用户问题。"
-        "如果问题超出你的能力范围，明确说明并建议转接专业客服。"
+        "你是 OptiServe 运营服务系统的通用接待 Agent。友好、简洁地回答用户问题。"
+        "如果问题超出你的能力范围，明确说明并建议转接对应专业 Agent 或人工处理。"
     )
 
     def get_tools(self) -> Dict[str, AgentToolSpec]:

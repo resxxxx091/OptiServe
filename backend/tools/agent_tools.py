@@ -1,5 +1,5 @@
 """
-Agent 侧工具契约与不查外部系统的确定性工具，编排器只负责：
+Agent 侧工具契约与不查外部业务系统的确定性工具，编排器只负责：
   1. 根据 Agent 类型暴露工具白名单
   2. 执行 LLM 返回的 tool_use
   3. 将工具结果回传给 LLM
@@ -73,7 +73,7 @@ def openai_tool_specs(specs: Iterable[AgentToolSpec]) -> List[Dict[str, Any]]:
 
 
 def inspect_request_context(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-    """通用客服工具：返回脱敏后的当前请求快照。"""
+    """通用受理工具：返回脱敏后的当前请求快照。"""
     return {
         "intent": req.intent.value if req.intent else None,
         "intent_confidence": round(req.intent_confidence, 4),
@@ -84,7 +84,7 @@ def inspect_request_context(req: Request, args: Dict[str, Any]) -> Dict[str, Any
 
 
 def suggest_required_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-    """通用客服工具：按业务类型计算下一轮只需询问的字段。"""
+    """通用受理工具：按业务类型计算下一轮只需询问的字段。"""
     intent = req.intent.value if req.intent else "other"
     fields: List[str] = []
     if intent in {"order_status", "logistics"}:
@@ -101,31 +101,6 @@ def suggest_required_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any
         "intent": intent,
         "required_fields": fields,
         "known_entities": req.entities or {},
-    }
-
-
-def lookup_error_code(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-    """技术工具：解释常见错误码的排查方向，不声称读取了服务端日志。
-
-    TODO: 这张表与 skills/technical-support/references/error-codes.md 是同一份
-    知识的两处副本，将来应归一到热加载那一侧。
-    """
-    code = str(args.get("error_code", "")).upper().strip()
-    mapping = {
-        "401": ("认证失败", ["确认 Token/API Key 是否过期", "确认请求时间戳和签名", "确认账号登录状态"]),
-        "403": ("权限不足", ["确认账号或套餐权限", "确认资源权限和 IP 白名单"]),
-        "404": ("资源或路径不存在", ["确认接口路径和环境", "确认资源标识是否正确"]),
-        "500": ("服务端处理异常", ["记录 request_id 和发生时间", "检查依赖服务、参数格式和服务端日志"]),
-    }
-    meaning, steps = mapping.get(
-        code,
-        ("暂未识别的错误码", ["补充完整错误信息、发生时间和运行环境"]),
-    )
-    return {
-        "error_code": code,
-        "meaning": meaning,
-        "next_steps": steps,
-        "server_log_checked": False,
     }
 
 
@@ -342,13 +317,6 @@ def general_tools() -> Dict[str, AgentToolSpec]:
 
 def technical_tools() -> Dict[str, AgentToolSpec]:
     return {
-        "lookup_error_code": make_tool(
-            "lookup_error_code",
-            "解释常见 HTTP 错误码的可能含义和低风险排查方向；不会读取服务端日志。",
-            {"error_code": {"type": "string", "description": "例如 401、403、500"}},
-            lookup_error_code,
-            required=["error_code"],
-        ),
         "build_diagnostic_plan": make_tool(
             "build_diagnostic_plan",
             "根据运行环境和是否可复现生成排障顺序，不执行修改配置等操作。",

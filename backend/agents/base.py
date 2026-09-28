@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class AgentType(Enum):
-    GENERAL   = "general"    # 通用客服
+    GENERAL   = "general"    # 通用运营接待
     TECHNICAL = "technical"  # 技术支持
     BILLING   = "billing"    # 账单/退款
     ORDER     = "order"      # 订单与物流

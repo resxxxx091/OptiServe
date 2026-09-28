@@ -1,7 +1,7 @@
 [project]
 name = "optiserve"
 version = "0.1.0"
-description = "OptiServe 智能客服后端"
+description = "OptiServe 运营服务系统后端"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",

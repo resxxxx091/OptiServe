@@ -14,7 +14,7 @@ class TechnicalAgent(BaseAgent):
         input_contract=("错误码", "问题发生时间", "运行环境", "影响范围", "最近变更", "知识库上下文"),
         output_contract=("现象复述", "可能原因", "编号排查步骤", "验证结果", "需要补充的信息"),
         handoff_conditions=("生产大面积不可用", "数据丢失或权限异常", "需要后台日志、数据库或人工操作"),
-        tool_scope=("search_knowledge_base", "load_skill", "lookup_error_code", "build_diagnostic_plan"),
+        tool_scope=("search_knowledge_base", "load_skill", "load_skill_resource", "build_diagnostic_plan"),
         temperature=0.1,
         max_tokens=1200,
     )
