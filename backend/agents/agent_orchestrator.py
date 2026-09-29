@@ -61,6 +61,7 @@ class OrchestratorResult:
     primary_agent: Optional[AgentType] = None
     supporting_agents: List[AgentType] = field(default_factory=list)
     tools_used: List[str] = field(default_factory=list)
+    skills_used: List[str] = field(default_factory=list)
     routing_reason: str = ""
     routing_confidence: float = 0.0
 
@@ -305,6 +306,7 @@ class AgentOrchestrator:
             primary_agent=decision.primary_agent,
             supporting_agents=[],
             tools_used=list(response.tools_used),
+            skills_used=list(response.skills_used),
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,
         )
@@ -357,6 +359,11 @@ class AgentOrchestrator:
                 tool_name
                 for response in responses
                 for tool_name in response.tools_used
+            )),
+            skills_used=list(dict.fromkeys(
+                skill_name
+                for response in responses
+                for skill_name in response.skills_used
             )),
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,

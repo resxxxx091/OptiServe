@@ -79,6 +79,7 @@ class AgentResponse:
     success:     bool
     escalate:    bool  = False   # 是否需要升级
     tools_used:  List[str] = field(default_factory=list)
+    skills_used: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -133,7 +134,7 @@ class BaseAgent:
         t0 = time.monotonic()
         self.stats.total += 1
         try:
-            content, tools_used = await self._call_llm(req)
+            content, tools_used, skills_used = await self._call_llm(req)
             ms = (time.monotonic() - t0) * 1000
             self.stats.success += 1
             self.stats.total_ms += ms
@@ -144,6 +145,7 @@ class BaseAgent:
                 success=True,
                 escalate=escalate,
                 tools_used=list(tools_used),
+                skills_used=list(skills_used),
             )
         except Exception as ex:
             ms = (time.monotonic() - t0) * 1000
@@ -155,7 +157,7 @@ class BaseAgent:
                 success=False,
             )
 
-    async def _call_llm(self, req: Request) -> Tuple[str, List[str]]:
+    async def _call_llm(self, req: Request) -> Tuple[str, List[str], List[str]]:
         """跑 G2 工具子图；agent/chat/工具表按次注入，图只在导入时编译一次。"""
         tools = self.get_tools()
         chat = self._chat if not tools else self._chat.bind_tools(openai_tool_specs(tools.values()))
@@ -176,7 +178,7 @@ class BaseAgent:
             raise
         if state["exhausted"]:
             raise RuntimeError(f"{self.agent_type.value} 工具调用超过最大轮数")
-        return state["text"], list(state["tools_used"])
+        return state["text"], list(state["tools_used"]), list(state.get("skills_used") or [])
 
     def _context_turns(self, req: Request) -> List[str]:
         """请求前置的合成 user turn：背景 / 结构化实体 / 角色契约。对话历史不进 Agent。"""

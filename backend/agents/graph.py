@@ -49,6 +49,7 @@ class ToolLoopState(TypedDict, total=False):
     calls: List[Dict[str, Any]]
     round: int
     tools_used: List[str]
+    skills_used: List[str]
     text: str
     exhausted: bool
 
@@ -67,6 +68,7 @@ async def render_prompt(state: ToolLoopState, config: RunnableConfig) -> Dict[st
         "conversation": conversation,
         "calls": [],
         "tools_used": [],
+        "skills_used": [],
         "text": "",
         "exhausted": False,
     }
@@ -115,6 +117,7 @@ async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, A
 
     conversation = list(state["conversation"])
     tools_used = list(state["tools_used"])
+    skills_used = list(state["skills_used"])
 
     for call in state["calls"]:
         name = call["name"]
@@ -141,6 +144,10 @@ async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, A
                     if inspect.isawaitable(result):
                         result = await result
                     tools_used.append(name)
+                    # 能力观测只认 load_skill 的成功结果：resolved 后的正式名，
+                    # 和响应体里模型自己传的 args.name 可能不同
+                    if name == "load_skill" and isinstance(result, dict) and result.get("success"):
+                        skills_used.append(str(result.get("name") or ""))
                     if isinstance(result, dict) and "success" in result:
                         result_success = bool(result.get("success"))
                 except Exception as ex:
@@ -163,7 +170,7 @@ async def run_tools(state: ToolLoopState, config: RunnableConfig) -> Dict[str, A
             tool_call_id=tool_use_id,
         ))
 
-    return {"conversation": conversation, "tools_used": tools_used}
+    return {"conversation": conversation, "tools_used": tools_used, "skills_used": skills_used}
 
 
 def after_tools(state: ToolLoopState) -> str:

@@ -1078,32 +1078,6 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .mini-stats span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 
-/* /health 的 dependencies：逐项列出闸门探测的结论，detail 是真实接上的端点与条数 */
-.dep-list { display: grid; margin: var(--sp-3) 0 0; }
-
-.dep-list div {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: var(--sp-2);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.dep-list div:last-child { border-bottom: 0; }
-.dep-list dt { color: var(--text-soft); font-family: var(--font-mono); font-size: 11px; }
-/* .dep-list dt 的特异性压过裸 .success/.warn，非 ok 依赖需要单独提回来才显琥珀色 */
-.dep-list dt.warn { color: var(--warn); }
-.dep-list dt.success { color: var(--ok); }
-
-.dep-list dd {
-  margin: 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* 熔断中 / 被降权：只在状态离开健康值时出现 */
 .runtime-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--sp-3); }
 

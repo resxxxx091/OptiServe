@@ -99,6 +99,7 @@ function normalizeChatResponse(raw) {
     intent: raw.intent,
     primaryAgent: raw.primary_agent,
     toolsUsed: raw.tools_used,
+    skillsUsed: raw.skills_used,
     routingReason: raw.routing_reason,
     routingConfidence: raw.routing_confidence,
     escalated: raw.escalated,

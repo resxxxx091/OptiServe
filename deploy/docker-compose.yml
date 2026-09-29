@@ -1,4 +1,4 @@
-# 只部署中间件：Redis + Milvus（etcd / MinIO 是 Milvus standalone 的内部依赖）。
+# 只部署中间件：Redis + Milvus（etcd / MinIO 是 Milvus standalone 的内部依赖）+ Attu（Milvus 管理界面）。
 # 前后端不进容器——后端用本机 `uvicorn api/main.py`（工作目录 backend/）、前端用本机 `npm run dev`（工作目录 frontend/）。
 #
 # 启动（工作目录 = 本文件所在的 deploy/）：
@@ -96,6 +96,22 @@ services:
       start_period: 90s
       timeout: 20s
       retries: 3
+
+  # ── Attu：Milvus 可视化管理界面 ─────────────────────────────────────────────
+  # 访问 http://localhost:3000 ；连接地址填 http://milvus:19530（容器网络内）或 http://localhost:19530
+  attu:
+    image: zilliz/attu:v2.6
+    container_name: optiserve-attu
+    environment:
+      MILVUS_URL: http://milvus:19530
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    networks:
+      - optiserve-network
+    depends_on:
+      milvus:
+        condition: service_healthy
 
 # ── 网络 ────────────────────────────────────────────────────────────────────
 networks:

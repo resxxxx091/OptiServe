@@ -310,6 +310,7 @@ class ChatResponse(BaseModel):
     primary_agent: str = ""
     supporting_agents: List[str] = Field(default_factory=list)
     tools_used: List[str] = Field(default_factory=list)
+    skills_used: List[str] = Field(default_factory=list)
     routing_reason: str = ""
     routing_confidence: float = 0.0
     escalated:   bool
@@ -477,6 +478,7 @@ async def chat(req: ChatRequest):
                 primary_agent=result.primary_agent.value if result.primary_agent else result.agent_type.value,
                 supporting_agents=[agent_type.value for agent_type in result.supporting_agents],
                 tools_used=result.tools_used,
+                skills_used=result.skills_used,
                 routing_reason=result.routing_reason,
                 routing_confidence=result.routing_confidence,
                 escalated=result.escalated,

@@ -182,6 +182,7 @@
                   <div><dt>意图</dt><dd>{{ lastResponse.intent }}</dd></div>
                   <div><dt>置信度</dt><dd>{{ formatPercent(lastResponse.routingConfidence) }}</dd></div>
                   <div v-if="lastResponse.toolsUsed.length"><dt>工具</dt><dd>{{ lastResponse.toolsUsed.join(' · ') }}</dd></div>
+                  <div v-if="lastResponse.skillsUsed?.length"><dt>能力</dt><dd>{{ lastResponse.skillsUsed.join(' · ') }}</dd></div>
                   <div><dt>知识库</dt><dd :class="lastResponse.knowledgeUsed ? 'success' : 'muted'">{{ lastResponse.knowledgeUsed ? '已使用' : '未使用' }}</dd></div>
                   <div><dt>降级</dt><dd :class="lastResponse.degraded ? 'warn' : 'muted'">{{ lastResponse.degraded ? `是 · ${lastResponse.degradations.length} 项` : '否' }}</dd></div>
                   <div><dt>转人工</dt><dd :class="lastResponse.escalated ? 'danger' : 'muted'">{{ lastResponse.escalated ? '是' : '否' }}</dd></div>
@@ -221,12 +222,7 @@
                 <div><strong>{{ agentCount }}</strong><span>Agent</span></div>
                 <div><strong>{{ toolCount }}</strong><span>工具</span></div>
               </div>
-              <dl v-if="healthDeps.length" class="dep-list">
-                <div v-for="dep in healthDeps" :key="dep.source">
-                  <dt :class="dep.state === 'ok' ? 'success' : 'warn'">{{ dep.source }}</dt>
-                  <dd :title="dep.detail || dep.state">{{ dep.detail || dep.state }}</dd>
-                </div>
-              </dl>
+              <!-- dependencies 逐项端点细节不对外展示，仅保留头部计数作整体健康指示 -->
               <div v-if="runtimeChips.length" class="runtime-chips">
                 <span v-for="chip in runtimeChips" :key="chip.key" :class="chip.tone" :title="chip.title">{{ chip.text }}</span>
               </div>
