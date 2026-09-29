@@ -6,8 +6,9 @@ Agent 侧工具契约与不查外部业务系统的确定性工具，编排器�
 
 工具类型：
   - 当前请求分析
-  - 技术排障建议
-  - 账单字段核验
+  - 店铺经营数据查询（模拟数据源）
+  - 商品/活动运营要素检查
+  - 订单客诉与故障排查建议
   - 业务 Skill 规范正文、附表与演示操作的按需取回
 """
 
@@ -87,14 +88,14 @@ def suggest_required_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any
     """通用受理工具：按业务类型计算下一轮只需询问的字段。"""
     intent = req.intent.value if req.intent else "other"
     fields: List[str] = []
-    if intent in {"order_status", "logistics"}:
-        fields = ["订单号或下单时间"]
-    elif intent in {"refund", "invoice", "payment_issue"}:
-        fields = ["订单号或交易号", "金额与发生时间"]
-    elif intent in {"technical_login", "technical_crash"}:
-        fields = ["错误码或错误提示", "问题发生时间"]
-    elif intent in {"complaint", "human_handoff"}:
-        fields = ["事件时间", "期望处理方式"]
+    if intent in {"data_query", "report_generation", "anomaly_diagnosis"}:
+        fields = ["要查的指标（销售额/退款率/转化率等）", "时间范围（默认最近7天）"]
+    elif intent in {"product_ops", "campaign_ops"}:
+        fields = ["商品名称或SKU", "要执行的操作与目标值"]
+    elif intent in {"order_ops", "cs_escalation"}:
+        fields = ["订单号", "问题描述与期望处理方式"]
+    elif intent == "system_issue":
+        fields = ["错误码或错误提示", "问题发生时间与影响范围"]
     elif intent == "other":
         fields = ["希望解决的具体问题"]
     return {
@@ -122,35 +123,67 @@ def build_diagnostic_plan(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def check_billing_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-    """账单工具：检查必要核验字段是否齐全。"""
+def _query_metrics_handler(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+    from tools.mock_biz_data import query_metrics
+    return query_metrics(req, args)
+
+
+def _query_inventory_handler(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+    from tools.mock_biz_data import query_inventory
+    return query_inventory(req, args)
+
+
+def _query_anomalous_orders_handler(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+    from tools.mock_biz_data import query_anomalous_orders
+    return query_anomalous_orders(req, args)
+
+
+def _compare_numbers(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+    """只做用户明确提供的两个数值之间的算术，不下业务结论。"""
+    try:
+        first = float(args["number_a"])
+        second = float(args["number_b"])
+    except (KeyError, TypeError, ValueError):
+        return {"success": False, "error": "number_a 和 number_b 必须是数字"}
+    return {
+        "success": True,
+        "number_a": first,
+        "number_b": second,
+        "difference": round(first - second, 2),
+        "ratio": round(first / second, 4) if second else None,
+        "interpretation": "仅表示数值差与比值，不代表业务结论",
+    }
+
+
+def _check_ops_fields(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+    """运营操作前置检查：确认执行动作前必要字段是否齐全。"""
     fields = {
-        "order_id": bool(req.entities.get("order_id")),
-        "amount": bool(req.entities.get("amount")),
+        "product_or_sku": bool(req.entities.get("product") or args.get("product")),
         "date": bool(req.entities.get("date")),
-        "payment_channel": bool(args.get("payment_channel")),
+        "order_id": bool(req.entities.get("order_id")),
+        "target_value": bool(args.get("target_value")),
     }
     return {
         "fields": fields,
         "missing_fields": [name for name, present in fields.items() if not present],
-        "can_confirm_refund": False,
-        "reason": "当前工具只做字段检查，不连接订单或支付系统",
+        "can_execute": False,
+        "reason": "当前工具只做字段检查，不连接商品或活动系统",
     }
 
 
-def compare_amounts(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
-    """账单工具：只做用户明确提供金额之间的算术。"""
-    try:
-        first = float(args["amount_a"])
-        second = float(args["amount_b"])
-    except (KeyError, TypeError, ValueError):
-        return {"success": False, "error": "amount_a 和 amount_b 必须是数字"}
+def _draft_campaign_plan(req: Request, args: Dict[str, Any]) -> Dict[str, Any]:
+    """按活动类型给出低风险的活动配置要素清单，不执行任何创建动作。"""
+    campaign_type = str(args.get("campaign_type", "满减"))[:40]
+    plans = {
+        "满减": ["满减门槛与优惠金额", "适用商品范围", "每人限领/限用次数", "活动起止时间", "预算上限"],
+        "秒杀": ["秒杀时段与库存分配", "每人限购数量", "价格审批", "预热页配置"],
+        "优惠券": ["面额与使用门槛", "发放量与领取上限", "适用商品与叠加规则", "有效期"],
+    }
     return {
-        "success": True,
-        "amount_a": first,
-        "amount_b": second,
-        "difference": round(first - second, 2),
-        "interpretation": "仅表示金额差值，不代表重复扣款或退款结论",
+        "campaign_type": campaign_type,
+        "required_elements": plans.get(campaign_type, plans["满减"]),
+        "can_execute": False,
+        "reason": "实际创建活动需要在后台人工提交",
     }
 
 
@@ -252,8 +285,8 @@ def build_skill_tools(
     return {
         "load_skill": make_tool(
             "load_skill",
-            "按名称加载业务 Skill 的完整规范正文。当问题涉及对外业务口径——退款与到账时效、"
-            "发票与扣款、订单状态与到货时间、故障排查步骤、升级条件与禁止事项——时，"
+            "按名称加载业务 Skill 的完整规范正文。当问题涉及对外业务口径——数据指标口径、"
+            "活动配置规则、订单与客诉处理流程、系统故障排查步骤、升级条件与禁止事项——时，"
             "先加载对应 Skill 再据此回答。name 必须与 system prompt 的 [可用 Skills] 索引逐字一致。"
             "返回体里的 resources/scripts 是该 Skill 的第三层清单，正文指向附表或操作时会一并给出。"
             "需要多个 Skill 或其它工具时，请在同一轮内并行发起多个调用。",
@@ -315,37 +348,61 @@ def general_tools() -> Dict[str, AgentToolSpec]:
     }
 
 
-def technical_tools() -> Dict[str, AgentToolSpec]:
+def data_tools() -> Dict[str, AgentToolSpec]:
     return {
-        "build_diagnostic_plan": make_tool(
-            "build_diagnostic_plan",
-            "根据运行环境和是否可复现生成排障顺序，不执行修改配置等操作。",
-            {
-                "environment": {"type": "string", "description": "App、浏览器、服务端或 Docker 等"},
-                "reproduced": {"type": "boolean", "description": "问题是否可以稳定复现"},
-            },
-            build_diagnostic_plan,
-            required=["environment", "reproduced"],
+        "query_metrics": make_tool(
+            "query_metrics",
+            "查询店铺经营指标（GMV、订单量、访客数、转化率、退款率），支持指定最近 N 天窗口，"
+            "返回区间汇总与逐日明细。数据来自演示环境模拟数据源，回答时须向用户说明这一点。",
+            {"days": {"type": "integer", "description": "最近 N 天，1-30，缺省 7"}},
+            _query_metrics_handler,
+        ),
+        "query_inventory": make_tool(
+            "query_inventory",
+            "按商品名称或 SKU 查询库存数量与在售状态；低于 50 件会进入低库存提示。只读，不做库存调整。",
+            {"keyword": {"type": "string", "description": "商品名称关键字或 SKU 编号"}},
+            _query_inventory_handler,
+            required=["keyword"],
+        ),
+        "query_anomalous_orders": make_tool(
+            "query_anomalous_orders",
+            "查询当前待处理的异常订单（退款金额不符、支付未生成、客诉升级等），可按状态过滤。只读查询。",
+            {"status": {"type": "string", "description": "可选过滤：待审核 / 待处理 / 待核实"}},
+            _query_anomalous_orders_handler,
         ),
     }
 
 
-def billing_tools() -> Dict[str, AgentToolSpec]:
+def ops_tools() -> Dict[str, AgentToolSpec]:
     return {
-        "check_billing_fields": make_tool(
-            "check_billing_fields",
-            "检查账单核验字段是否齐全；不连接订单、支付或退款系统。",
-            {"payment_channel": {"type": "string", "description": "支付渠道，例如微信、支付宝、银行卡"}},
-            check_billing_fields,
-        ),
-        "compare_amounts": make_tool(
-            "compare_amounts",
-            "计算用户明确提供的两笔金额差值；不判断是否重复扣款，也不执行退款。",
+        "check_ops_fields": make_tool(
+            "check_ops_fields",
+            "执行商品/活动操作前检查必要字段（商品或SKU、目标值等）是否齐全；不执行任何修改动作。",
             {
-                "amount_a": {"type": "number", "description": "第一笔金额"},
-                "amount_b": {"type": "number", "description": "第二笔金额"},
+                "product": {"type": "string", "description": "商品名称或 SKU"},
+                "target_value": {"type": "string", "description": "操作的目标值，例如新价格、调整后库存"},
             },
-            compare_amounts,
-            required=["amount_a", "amount_b"],
+            _check_ops_fields,
+        ),
+        "draft_campaign_plan": make_tool(
+            "draft_campaign_plan",
+            "按活动类型（满减/秒杀/优惠券）生成需要准备的平台要素清单；只列要素，不创建活动。",
+            {"campaign_type": {"type": "string", "description": "活动类型：满减 / 秒杀 / 优惠券"}},
+            _draft_campaign_plan,
+        ),
+    }
+
+
+def service_tools() -> Dict[str, AgentToolSpec]:
+    return {
+        "build_diagnostic_plan": make_tool(
+            "build_diagnostic_plan",
+            "根据运行环境和是否可复现生成系统故障的排查顺序，不执行修改配置等操作。",
+            {
+                "environment": {"type": "string", "description": "商家后台、App、浏览器或服务端等"},
+                "reproduced": {"type": "boolean", "description": "问题是否可以稳定复现"},
+            },
+            build_diagnostic_plan,
+            required=["environment", "reproduced"],
         ),
     }

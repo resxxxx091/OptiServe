@@ -1,0 +1,2214 @@
+{
+ "name": "optiserve-rag-eval",
+ "description": "RAG 检索评测集（build_rag_dataset.py 生成）：问题 + 应召回的文档标题子串。",
+ "items": [
+  {
+   "question": "过度使用导致贬损能拒退吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "电子发票要盖章吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "过期食品的赔付标准",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "散装/自制食品的经营要求",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "调整发货时限要注意什么",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "取消续费必须简便吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "商家要配合行政调解吗",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "怎么降低客诉升级率",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "新版快递国标是哪年发布的",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "千元保底的规定",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "不在三包目录怎么处理质量问题",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "既有定金又有违约金怎么选",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "同城快递多久必须送到",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "退订后还发营销短信违法吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "七日后发现质量问题还能退吗",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "轨迹异常的客服口径",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "民法典定金条款是哪几条",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "缺货告知义务是什么",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "自动续费规定出自哪里",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "优惠条件不公示合法吗",
+   "rag_expect": [
+    "促销价格合规",
+    "活动规则公示义务与格式条款无效"
+   ]
+  },
+  {
+   "question": "页面价格标注要注意什么",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "消保法关于发票的规定",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "发货时限要在哪里公示",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "连续包月要提前几天通知",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "蹭大牌关键词有风险吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "被投诉价格欺诈怎么应对",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "临期食品可以卖吗",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "数电发票和纸质发票效力一样吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "会员协议里的免责条款有效吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "合理调试影响退货吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "超时未发货是违约吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "中奖规则可以随时改吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "秒杀低价订单必须发货吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "商品完好标准出自哪个办法",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "广告法的绝对化用语条款",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "定金翻倍的玩法合规吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "延迟发货有什么责任",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "七天无理由退货和质保的关系",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "小规模纳税人开票的要求",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "退款流程要多久走完",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "一天发几条营销短信合适",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "减少质量退货的方法",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "超低价被拍大量怎么处理",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "开发票附加条件合法吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "格式条款争议的解决途径",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "超时发货被投诉的应对",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "页面标低价结算收高价合法吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "发货超时买家可以主张什么",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "异物投诉怎么处理",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "退货后再出问题怎么办",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "快递丢件商家要先赔吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "生鲜支持七天无理由吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "默认续费的合规风险",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "信息收集的同意要求",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "七天无理由退货的法律依据",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "买家投诉到市监局多久受理",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "明知的认定",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "投诉受理的条件",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "发票违规的举报渠道",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "标签小错误算不符合安全标准吗",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "因拒退被投诉怎么办",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "客诉处理的黄金时间",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "卖过期食品赔多少",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "违约金与定金的关系",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "调解会议商家怎么准备",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "散装食品网上卖要注意什么",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "加重消费者责任的条款有效吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "政务热线投诉的处理差异",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "财会6号文讲什么",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "不退货只退款的适用场景",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "电商法第四十九条讲什么",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "怎么证明按时发货",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "调解期限改成什么了",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "退货期最后一天是节假日怎么办",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "同城件的标准时限",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "续费取消的设计要求",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "买家拆封了还能拒退吗",
+   "rag_expect": [
+    "快速退货退款的处理框架",
+    "退货验收标准"
+   ]
+  },
+  {
+   "question": "暴雨导致延误能免责吗",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "格式条款的提示义务范围",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "什么情况可以不给已付款订单发货",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "税控设备和数电票的区别",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "不予受理有什么后果",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "商家可以拒绝开发票吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "商家不给发票投诉电话",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "优惠券到期不按约定抵扣违法吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "收到价格违规通知先做什么",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "商家怎么配置电子发票功能",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "同城快递24小时是什么标准",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "质量问题换修运费怎么算",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "七种价格欺诈行为都有什么",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "退回来的货必须完好吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "投诉处理办法哪年修订的",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "内部失误对买家有效吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "怎么判断物流客诉是否合理",
+   "rag_expect": [
+    "发货履约规则",
+    "快递服务时限标准与延误处理"
+   ]
+  },
+  {
+   "question": "价格欺诈包括哪几种典型行为",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "报销只给打印件行吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "搜索关键词的合规",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "无约定时质量问题怎么退",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "数电票需要盖公章吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "定金从交付开始生效吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "品控问题的运营改进",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "定金什么时候抵作价款",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "质量问题退货的时间边界",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "价格承诺不履行有什么后果",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "合同成立的时间影响什么",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "个人店要开发票吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "续费提醒要提前多久",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "收到退货后退款时限",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "用户注销后数据怎么处理",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "禁止价格欺诈的依据是什么文件",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "消保法实施条例对自动续费有要求吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "拒退需要留什么凭证",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "调解终止的后续",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "数据宣传的可查证要求",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "定金条款的提示义务",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "定金规则要公示吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "骚扰电话有什么法律管",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "数电发票什么时候全国推行的",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "拒退引发客诉怎么处理",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "营销触达要用户同意吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "绝对化用语有哪些",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "取消自动续费入口难找违规吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "注销用户的信息处理",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "发货留证的操作",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "格式条款无效怎么认定",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "被认定无效的格式条款有什么后果",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "免责条款全免商家责任行不行",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "社群营销的法律边界",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "调解不到场有什么后果",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "骚扰短信去哪举报",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "市监调解要多久",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "跨省快递的标准时限",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "明码标价规定是哪年施行的",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "不知情扣款怎么处理",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "延误的界定标准",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "关注公众号才给开票违规吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "促销规则藏得很深有什么风险",
+   "rag_expect": [
+    "促销价格合规",
+    "活动规则公示义务与格式条款无效"
+   ]
+  },
+  {
+   "question": "宣传买贵必赔就要真赔吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "买家扬言12315怎么办",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "优惠使用条件藏在二级页面有风险吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "销量数据可以随便标吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "12345和12315的区别",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "对方不认电子专票怎么办",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "收三成定金合法吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "个人信息使用的合法要求",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "误操作取消订单的责任",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "质量问题退货和无理由退货有什么区别",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "试营业可以不开票吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "仅退款怎么处理",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "自动续费违规的罚款",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "退订短信的义务",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "电子发票有法律效力吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "拒开发票去哪举报",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "特价商品不退不换的标语合规吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "过七天质量问题怎么处理",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "先涨价再打折违规吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "页面勾选不支持退货就有效吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "电子发票的真实性验证",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "定金和违约金能同时主张吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "原价可以随便标吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "快递服务标准的版本情况",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "食品安全法一百四十八条",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "退货后的保修期",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "主播说错话商家担责吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "仅退款的审核边界",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "买家拆开包装了算完好吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "营销短信必须带退订吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "低价标错被拍怎么处理",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "退款超期有什么风险",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "供应商责任的质量问题怎么追偿",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "GB/T 27917规定了什么",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "自动续费提醒义务",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "价格欺诈是哪部法规规定的",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "买家试穿试用了能拒退吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "拒收后的运费与责任",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "偏远地区时效怎么算",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "会员权益怎么设计才合规",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "多久之内必须把发票开给买家",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "无理由退货的运费谁出",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "签收后概不负责有效吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "物流客诉该找谁申诉",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "电子凭证入账的规范文件",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "质量争议的验收流程",
+   "rag_expect": [
+    "质量问题退换修义务与费用承担",
+    "退货验收标准"
+   ]
+  },
+  {
+   "question": "数电票怎么防伪",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "有质量问题的退货商家要出运费吗",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "哪些信息必须提请消费者注意",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "食品退一赔十的法规依据",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "直播话术要注意什么",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "短信营销的频次限制",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "电子发票的签章要求",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "售后政策里要写开票说明吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "拆封与退货的关系",
+   "rag_expect": [
+    "快速退货退款的处理框架",
+    "退货验收标准"
+   ]
+  },
+  {
+   "question": "行政投诉的受理期限",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "促销时标的原价必须是真实成交价吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "虚构原价会有什么后果",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "广告法对虚假宣传的规定",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "进口食品要什么手续",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "新疆西藏的时限标准",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "投诉升级前的和解策略",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "运输风险谁承担",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "付款成功后商家能取消订单吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "彻底延误的赔偿依据",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "当时没要发票还能补吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "理亏投诉的处理策略",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "调解 participation 的义务",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "买家交了定金不补尾款能退吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "退货调包的应对",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "发票开具的时限要求",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "运费险的作用",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "商标侵权的宣传风险",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "低价引流高价结算算什么行为",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "经营者责任的边界",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "取消订单的客诉安抚",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "最终解释权归本店所有合法吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "生活安宁权的相关条款",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "质量追责的上游路径",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "临期商品的销售规范",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "电子发票的服务平台",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "开票时效的规定",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "缺货未告知的责任",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "说明书丢了影响退货审核吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "尾款违约的处理",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "误导性价格标示包括什么",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "调解超时怎么办",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "电视购物邮购的商品能无理由退吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "退货入库的检查清单",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "食品过期十倍赔偿是什么",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "什么条款消费者可以主张无效",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "质量问题退换修的法规依据",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "海外买家要发票怎么办",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "食品保质期临期要标注吗",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "开票要扫码关注才行吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "以缺货为由拒发货的责任",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "电子发票链接失效了怎么办",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "食品赔偿不足一千怎么算",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "定金可以退吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "自动续费的用户体验怎么优化",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "退款审核的操作要点",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "商品不合格买家的救济",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "划线价怎么标才合规",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "网购以外渠道的退货规则",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "电子原件保存的规定",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "品牌词能用吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "拆封退货怎么审核",
+   "rag_expect": [
+    "快速退货退款的处理框架",
+    "退货验收标准"
+   ]
+  },
+  {
+   "question": "十倍赔偿的保底是多少",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "定金定价策略",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "电话推销侵扰生活安宁吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "投诉不予受理会告知吗",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "完好的标准是什么",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "质量问题的举证责任",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "开票义务要公示吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "不可抗力快递慢了免责吗",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "食品惩罚性赔偿条款",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "用户拒收后能继续发广告吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "主图上能写促销倒计时吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "买家说有质量问题但不肯举证",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "开票义务的法律依据",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "删除权的响应",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "省外件72小时是什么规定",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "食品经营许可证的要求",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "标题写全网第一违规吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "完好包括哪些要素",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "买名单做营销合法吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "退货率的运营优化",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "自动续费违规罚多少",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "快递服务质量怎么评估",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "质量争议协商不成怎么办",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "消费者七天无理由退货是法定义务吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "定金担保的性质",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "积分兑换被商家拒绝怎么办",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "标错价格必须发货吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "微信私域发广告合规吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "订单合同什么时候成立",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "发货凭证要留什么",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "快递超时算延误吗",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "发票信息维护",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "快递超时可以索赔吗",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "没货了要第一时间告诉买家吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "标错价取消订单要担责吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "买家的退款申请怎么审",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "预售定金规则写在哪",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "定金收多少比较合理",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "标签瑕疵的除外条款",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "什么情况构成彻底延误",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "查验需要拆封算影响完好吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "五日提醒是什么要求",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "影响二次销售的退货怎么处理",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "定金规则出自什么法",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "换快递公司的时机",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "哪些格式条款是无效的",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "退货包运费是法定义务吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "社群营销的消息边界",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "发票抬头信息错误怎么处理",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "定金金额设定有什么讲究",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "48小时发货是法定要求吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "食品里吃出异物商家赔多少",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "定金优惠的规则设计",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "食品投诉的处理原则",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "未经同意电话营销违规吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "定金罚则的法律依据",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "标错价格能取消订单吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "为什么合同成立时间重要",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "包裹无轨迹怎么处理",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "调解不成怎么办",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "补开发票的处理",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "抽奖活动的合规要点",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "活动商品概不退换的声明有效吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "七天怎么计算",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "商家收定金后不发货怎么赔",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "预售定金不退合法吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "食品类目入驻要什么资质",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "定金最多收多少",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "订阅模式切换的处理",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "限责条款什么时候无效",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "会员营销的合规要点",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "开票金额和实付不一致怎么办",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "无法发货时的和解策略",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "没同意就发促销短信合法吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "27917标准修订过吗",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "商品页写的发货时间算合同义务吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "七日无理由退货暂行办法讲了什么",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "发票金额怎么开",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "开票工具的接入",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "主播口播的价格承诺有效吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "礼券抵扣规则可以随便改吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "拒开发票合法吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "什么情况可以认定不完好",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "不能取消的勾选项合法吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "尾款不付的订单怎么处理",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "会员体系的设计要点",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "这类格式条款的效力",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "促销前的原价有什么规定",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "自制食品能上网卖吗",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "满减规则没写清楚被投诉怎么办",
+   "rag_expect": [
+    "促销价格合规",
+    "活动规则公示义务与格式条款无效"
+   ]
+  },
+  {
+   "question": "取消订单的补偿方案怎么定",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "用检测结果宣传要注意什么",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "格式条款要显著提示哪些内容",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "缺货可以取消已付款订单吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "消保法第二十四条讲什么",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "拒收件的处理流程",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "有人专门买贵了索赔怎么应对",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "延迟发货的客诉怎么安抚",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "检测报告能直接放详情页吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "自动续费的法规依据",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "优惠券之后按什么金额开票",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "禁用词的法规依据",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "默认勾选的条款有效吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "退回来的货怎么验收",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "收到退货和寄出的不一样",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "新条例的续费规定",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "调解材料的清单",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "商品详情页能用最佳吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "用户数据用于营销的边界",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "营销触达的频率策略",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "价格欺诈的处罚有多重",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "数电票合法吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "开票流程怎么告知买家",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "首负责任制是什么",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "正常履约后定金去哪了",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "电子发票入账的要求",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "格式条款无效交易怎么处理",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "直播间下单适用无理由退货吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "约定付款后合同才成立的条款有效吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "连续包月转单次购买怎么操作",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "审核拒退怎么留证",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "买家不补尾款商品给别人行吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "新办法的变化",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "买家秀能当广告用吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "大促前先把价格抬上去再优惠，行不行",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "哪些商品不适用无理由退货",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "选快递公司要看重什么",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "发货承诺可以改吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "员工操作失误取消订单怎么办",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "定金双倍返还是什么规则",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "下单价和结算价不一致怎么处理",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "快递时限有没有国家标准",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "个体户开票义务",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "默认勾选自动续费违规吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "自动续费默认开启合法吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "买家抱怨慢但没超时怎么回",
+   "rag_expect": [
+    "发货履约规则",
+    "快递服务时限标准与延误处理"
+   ]
+  },
+  {
+   "question": "店堂告示写不退不换算数吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "行政调解失败后走什么途径",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "快递时效的国标是哪个",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "退货验收标准的法规依据",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "进口食品的中文标签要求",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "商标标识损坏算不完好吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "质量问题的退货运费谁承担",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "电子发票有数字签名吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "被自动续费的钱能退吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "续费提醒的文案怎么写",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "质量退和无理由退运费差别",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "注册协议能排除责任吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "买家不想要了能退吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "已付款订单的合同效力",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "退回来的商品被调包怎么办",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "明显违规的投诉怎么处理",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "定制商品的发货时限怎么约定",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "行政调解要准备什么材料",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "私域运营的合规要点",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "退货纠纷的化解方式",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "验收不合格怎么反馈买家",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "广告合规的流程建议",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "自动续费扣款前必须提醒吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "条款无效由谁说了算",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "价格欺诈投诉的应对",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "网络交易监督管理办法第十八条",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "异地快递几天必须到",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "商家不知道食品不合格也要赔吗",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "订金和定金有什么区别",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "主图营销元素的边界",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "买家要发票必须给吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "预售的发货时间怎么算合规",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "以拆封为由拒退合法吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "质量客诉怎么降低",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "承诺了最低价做不到算欺诈吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "商品完好的法定标准是什么",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "被威胁行政投诉怎么应对",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "开机查验算不算拆封",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "电子会计凭证归档要求",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "定作商品能无理由退吗",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "宣传物料合规怎么自查",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "个人信息能共享给第三方吗",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "标签瑕疵要赔十倍吗",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "买家对拒发货的救济",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "滥用他人品牌词的后果",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "退货商品有什么要求",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "数电票推广时间",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "倒计时 Urgency 设计合规吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "大促价格申报的口径",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "价格类投诉的和解策略",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "开票系统怎么选",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "财务拒收电子发票怎么办",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "质量纠纷的化解",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "偏远件的超时判定",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "直播口播的合规边界",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "短信退订通道的要求",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "被职业打假人盯上价格问题怎么办",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "退货商品损坏责任怎么认定",
+   "rag_expect": [
+    "质量问题退换修义务与费用承担",
+    "退货验收标准"
+   ]
+  },
+  {
+   "question": "用户想改购买方式",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "虚假广告怎么认定",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "食品客诉要先赔付吗",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "薅羊毛订单的应对",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "退回来的货怎么判断完不完好",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "拒收电子发票合法吗",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "七天无理由退货对商家的影响",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "食品类目的进货查验义务",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "垃圾短信投诉渠道",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "关键词堆砌品牌词被处罚怎么办",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "缺货可以不发货吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "提交订单合同就成立了吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "自动续费扣款后的退款",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "店铺写保留最终解释权有效吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "买家给错抬头重开吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "哪些行为算价格欺诈",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "质量问题买家可以要求什么",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "定金比例上限",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "承诺的发货时限必须遵守吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "客诉响应的最佳实践",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "不提醒就扣款有什么处罚",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "大促期间发货时限可以放宽吗",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "质量退换修的法定框架",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "定金抵扣的规则",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "文案审核的检查点",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "直播价和详情页不一致怎么办",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "合同时点的法律意义",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "夸大功效算虚假广告吗",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "谁证明商品有质量问题",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "跨境场景的开票口径",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "怎么降低无理由退货率",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "投诉调解的期限",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "订金是不是也要适用罚则",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "定金合同什么时候成立",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "食品异物的赔偿规则",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "不发货的赔偿怎么算",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "解释权条款有用吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "什么情况延误不赔",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "实施条例和办法的区别",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "全面数字化发票的公告",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "跨境食品的资质",
+   "rag_expect": "食品类目经营义务"
+  },
+  {
+   "question": "虚构销量有什么后果",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "快递问题打什么电话投诉",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "不适用无理由退货的商品要怎么标注",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "配件不全能拒退吗",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "质量问题和买家使用不当怎么区分",
+   "rag_expect": [
+    "质量问题退换修义务与费用承担",
+    "退货验收标准"
+   ]
+  },
+  {
+   "question": "不同投诉渠道的特点",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "订单效力的法律条款",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "向工厂索赔的材料",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "无理由退货从哪天开始算七天",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "扣费前提醒的时限",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "没有三包规定的商品有质量问题怎么办",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "预售定金膨胀怎么设计",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "发票下载失败怎么重新获取",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "预付款反悔能退吗",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "买家拒收后货算谁的",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "发票用完了能拒开吗",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "双11的价格要在什么时候定下来",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "发货才成立合同的条款无效吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "活动价的备案要求",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "开票系统怎么对接",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "商家单方面取消已付款订单违法吗",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "用户照片的使用授权",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "拒退举证材料有哪些",
+   "rag_expect": "退货验收标准"
+  },
+  {
+   "question": "UGC 内容的商用授权",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "发票管理办法第十九条说什么",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "无货拒发的违约后果",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "合同成立的法规依据",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "强制交易的技术手段指什么",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "广告法第九条内容",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "数电发票重复下载的入口",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "12321是干什么的",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "网购合同成立时间",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "以没有发票为由拒开怎么办",
+   "rag_expect": "开店与开票义务"
+  },
+  {
+   "question": "延误怎么向物流方索赔",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "商家几天内必须退款",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "商业性信息的规范",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "拒不发货消费者能主张什么",
+   "rag_expect": "已付款订单的合同效力"
+  },
+  {
+   "question": "物流信息一直不更新怎么办",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "霸王条款的典型例子",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "质量担保义务在哪条",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "规则公示义务的法律依据",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "续费触达的最佳实践",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "条款无效后活动怎么办",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "买家主张质量问题商家怎么举证",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "12305是处理什么的",
+   "rag_expect": "快递服务时限标准与延误处理"
+  },
+  {
+   "question": "售后政策写售后不承担运费有效吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "私域营销要注意什么",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "物流客诉的处理参照是什么",
+   "rag_expect": [
+    "发货履约规则",
+    "快递服务时限标准与延误处理"
+   ]
+  },
+  {
+   "question": "卖家违约定金怎么处理",
+   "rag_expect": "定金与预订管理"
+  },
+  {
+   "question": "用户协议要注意什么",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "收集用户信息的原则是什么",
+   "rag_expect": "营销触达合规"
+  },
+  {
+   "question": "12315投诉处理时限",
+   "rag_expect": "客诉与投诉处理时限"
+  },
+  {
+   "question": "运输途中损坏的责任划分",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "直播间说错价格要兑现吗",
+   "rag_expect": "促销价格合规"
+  },
+  {
+   "question": "两类退货入口怎么区分",
+   "rag_expect": "质量问题退换修义务与费用承担"
+  },
+  {
+   "question": "刷单炒信的处罚",
+   "rag_expect": "宣传物料红线"
+  },
+  {
+   "question": "排除消费者权利的条款算数吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "跨境订单的开票",
+   "rag_expect": "电子发票管理"
+  },
+  {
+   "question": "发货超时引发客诉怎么处理",
+   "rag_expect": "发货履约规则"
+  },
+  {
+   "question": "有奖销售的规则公示要求",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "活动规则必须显著公示吗",
+   "rag_expect": "活动规则公示义务与格式条款无效"
+  },
+  {
+   "question": "会员等级规则要公示吗",
+   "rag_expect": "会员与订阅运营"
+  },
+  {
+   "question": "排除无理由退货的条件",
+   "rag_expect": "快速退货退款的处理框架"
+  },
+  {
+   "question": "补开发票有时限吗",
+   "rag_expect": "开店与开票义务"
+  }
+ ]
+}

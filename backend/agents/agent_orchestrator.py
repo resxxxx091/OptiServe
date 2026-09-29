@@ -1,8 +1,7 @@
 """
 路由决策（_route_decision）：
   1. 意图映射表 —— _INTENT_AGENT 按 IntentCategory 唯一确定主处理 Agent，查不到降级 GeneralAgent
-  2. 实体触发协作 —— error_code / amount 结构化实体拉入 Technical / Billing 作为 supporting Agent
-  3. 转人工 —— human_handoff 意图不经过任何 Agent，由 handoff() 直接产出交接文案
+  2. 实体触发协作 —— error_code / amount 结构化实体拉入 Service / Data 作为 supporting Agent
 
 并行协作：
   - 有 supporting Agent 时由编排图的 parallel 节点扇出到 PARALLEL_GRAPH，结果经 ResponseComposer 合并后返回
@@ -11,7 +10,7 @@
   - 每种 AgentType 一个实例；专属 Agent 失败时降级到 GeneralAgent
   - Monitor 回写的 monitor_penalty 越过 ROUTING_DEMOTE_THRESHOLD 时，_apply_demotion
     在意图合法的候选里改选主 Agent（查表结果本身不动）
-  - Agent 自检命中升级话术，或意图为转人工 → escalated=True
+  - Agent 自检命中升级话术 → escalated=True
 """
 import json
 import logging
@@ -29,10 +28,10 @@ from agents.base import (
     BaseAgent,
     Request,
 )
-from agents.billing import BillingAgent
+from agents.data import DataAgent
 from agents.general import GeneralAgent
-from agents.order import OrderAgent
-from agents.technical import TechnicalAgent
+from agents.ops import OpsAgent
+from agents.service import ServiceAgent
 from core.degradation import Dep, degrade
 from core.intent_recognizer import IntentCategory, IntentRecognizer
 from core.llm import LLMProvider, message_text
@@ -85,32 +84,21 @@ class RoutingDecision:
 
 # 意图 → 主处理 Agent 的唯一映射表。查不到就走兜底 GeneralAgent。
 _INTENT_AGENT: Dict[IntentCategory, AgentType] = {
-    IntentCategory.GREETING:        AgentType.GENERAL,
-    IntentCategory.FEEDBACK:        AgentType.GENERAL,
-    IntentCategory.COMPLAINT:       AgentType.GENERAL,
-    IntentCategory.ORDER_STATUS:    AgentType.ORDER,
-    IntentCategory.LOGISTICS:       AgentType.ORDER,
-    IntentCategory.REFUND:          AgentType.BILLING,
-    IntentCategory.INVOICE:         AgentType.BILLING,
-    IntentCategory.PAYMENT_ISSUE:   AgentType.BILLING,
-    IntentCategory.TECHNICAL_LOGIN: AgentType.TECHNICAL,
-    IntentCategory.TECHNICAL_CRASH: AgentType.TECHNICAL,
+    IntentCategory.DATA_QUERY:        AgentType.DATA,
+    IntentCategory.REPORT_GENERATION: AgentType.DATA,
+    IntentCategory.ANOMALY_DIAGNOSIS: AgentType.DATA,
+    IntentCategory.PRODUCT_OPS:       AgentType.OPS,
+    IntentCategory.CAMPAIGN_OPS:      AgentType.OPS,
+    IntentCategory.CONTENT_GENERATE:  AgentType.OPS,
+    IntentCategory.ORDER_OPS:         AgentType.SERVICE,
+    IntentCategory.CS_ESCALATION:     AgentType.SERVICE,
+    IntentCategory.SYSTEM_ISSUE:      AgentType.SERVICE,
+    IntentCategory.PLATFORM_RULES:    AgentType.GENERAL,
+    IntentCategory.SOP_HOWTO:         AgentType.GENERAL,
 }
 
 # 低置信度时的澄清话术。必须是固定文本——判断"是否已经问过一次"靠比对历史里这一条。
-CLARIFY_PROMPT = "我还不能确定您要处理的是哪类问题。请补充一下是订单物流、退款账单，还是技术故障？"
-
-
-def handoff(req: Request) -> str:
-    """转人工：把已知信息整理成标准交接文案。不调 LLM，不做业务操作。"""
-    intent = req.intent.value if req.intent else "unknown"
-    entities = json.dumps(req.entities or {}, ensure_ascii=False)
-    return (
-        "我已将这个问题标记为人工升级处理。\n\n"
-        f"升级原因：意图={intent}\n"
-        f"已记录信息：{entities}\n"
-        "请不要发送短信验证码或完整支付凭证；人工客服会根据会话记录继续核验。"
-    )
+CLARIFY_PROMPT = "我还不能确定您要处理的是哪类问题。请补充一下是查数据、商品或活动操作，还是订单客诉？"
 
 
 class ResponseComposer:
@@ -167,7 +155,7 @@ class AgentOrchestrator:
     多 Agent 编排器。
 
     路由决策见 _route_decision：意图映射表定主 Agent，结构化实体触发辅助 Agent；
-    转人工意图走模块级 handoff()，不经过任何 Agent。
+    低置信度澄清走模块级 CLARIFY_PROMPT，不经过任何 Agent。
     每种 AgentType 一个实例，专属 Agent 失败降级到 GeneralAgent。
     """
 
@@ -187,10 +175,10 @@ class AgentOrchestrator:
 
         # Agent 池：每种类型一个实例
         self._pool: Dict[AgentType, BaseAgent] = {
-            AgentType.GENERAL:   self._make_agent(GeneralAgent, llm, model, skill_manager),
-            AgentType.TECHNICAL: self._make_agent(TechnicalAgent, llm, model, skill_manager),
-            AgentType.BILLING:   self._make_agent(BillingAgent, llm, model, skill_manager),
-            AgentType.ORDER:     self._make_agent(OrderAgent, llm, model, skill_manager),
+            AgentType.GENERAL: self._make_agent(GeneralAgent, llm, model, skill_manager),
+            AgentType.DATA:    self._make_agent(DataAgent, llm, model, skill_manager),
+            AgentType.OPS:     self._make_agent(OpsAgent, llm, model, skill_manager),
+            AgentType.SERVICE: self._make_agent(ServiceAgent, llm, model, skill_manager),
         }
 
     @staticmethod
@@ -273,13 +261,7 @@ class AgentOrchestrator:
         return state["result"]
 
     def _guard(self, req: Request, t0: float) -> Optional[OrchestratorResult]:
-        """两条不经过任何 Agent 的直返路径：转人工交接、低置信度澄清。"""
-        # 转人工意图不经过任何 Agent，直接返回交接文案。
-        if req.intent is IntentCategory.HUMAN_HANDOFF:
-            return self._early_result(
-                req, t0, handoff(req), "意图为 human_handoff，直接转人工，不经过 Agent",
-                escalated=True,
-            )
+        """不经过任何 Agent 的直返路径：低置信度澄清。"""
         if self._needs_clarification(req):
             return self._early_result(req, t0, CLARIFY_PROMPT, "低置信度 OTHER 意图，先澄清用户需求")
         return None
@@ -390,9 +372,9 @@ class AgentOrchestrator:
         entities = req.entities or {}
         supporting: List[AgentType] = []
         if entities.get("error_code"):
-            supporting.append(AgentType.TECHNICAL)
+            supporting.append(AgentType.SERVICE)
         if entities.get("amount"):
-            supporting.append(AgentType.BILLING)
+            supporting.append(AgentType.DATA)
         supporting = [agent for agent in supporting if agent != primary]
 
         return RoutingDecision(

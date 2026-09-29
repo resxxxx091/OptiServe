@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 class AgentType(Enum):
-    GENERAL   = "general"    # 通用运营接待
-    TECHNICAL = "technical"  # 技术支持
-    BILLING   = "billing"    # 账单/退款
-    ORDER     = "order"      # 订单与物流
+    GENERAL = "general"    # 通用接待与平台规则咨询
+    DATA    = "data"       # 数据查询与报表分析
+    OPS     = "ops"        # 商品与营销活动运营
+    SERVICE = "service"    # 订单履约与客诉处理
 
 
 @dataclass(frozen=True)
@@ -227,7 +227,7 @@ class BaseAgent:
             f"处理流程：{' -> '.join(self.profile.workflow)}\n"
             f"可用输入：{'；'.join(self.profile.input_contract)}\n"
             f"输出要求：{'；'.join(self.profile.output_contract)}\n"
-            f"升级条件：{'；'.join(self.profile.handoff_conditions) or '无，按通用客服规则处理'}\n"
+            f"升级条件：{'；'.join(self.profile.handoff_conditions) or '无，按通用规则处理'}\n"
             f"允许的数据/工具范围：{'、'.join(self.profile.tool_scope) or '仅使用当前请求上下文'}\n"
             "不要声称执行了未提供的查询、修改或退款操作；缺少证据时明确说明需要核验。"
         )

@@ -1,0 +1,4198 @@
+{
+ "name": "optiserve-eval",
+ "description": "电商运营服务评测集（build_dataset.py 生成）：11 类意图 + other；points 供 LLM-as-Judge 用。",
+ "items": [
+  {
+   "question": "活动结束后返场怎么搞",
+   "intent": "campaign_ops",
+   "points": [
+    "跨店/大促节奏"
+   ]
+  },
+  {
+   "question": "帮我把这个月的数据汇个总",
+   "intent": "report_generation",
+   "points": [
+    "月度总结"
+   ]
+  },
+  {
+   "question": "详情页能用'最好'这种词吗",
+   "intent": "platform_rules",
+   "points": [
+    "虚假宣传/广告合规"
+   ]
+  },
+  {
+   "question": "优惠券发多少张合适",
+   "intent": "campaign_ops",
+   "points": [
+    "活动预算/要素确认"
+   ]
+  },
+  {
+   "question": "帮我写一条回复差评的话术",
+   "intent": "content_generate",
+   "points": [
+    "回复模板"
+   ]
+  },
+  {
+   "question": "618活动怎么报名",
+   "intent": "campaign_ops",
+   "points": [
+    "活动报名资质"
+   ]
+  },
+  {
+   "question": "退款金额明细给我看看",
+   "intent": "data_query",
+   "points": [
+    "支付/退款明细"
+   ]
+  },
+  {
+   "question": "防晒霜卖不动，给我个建议",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "把SKU-1004的价格调整为89",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "怎么开通运费险",
+   "intent": "sop_howto",
+   "points": [
+    "工具配置类"
+   ]
+  },
+  {
+   "question": "有什么办法清理库存",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "优惠券叠加规则怎么定",
+   "intent": "campaign_ops",
+   "points": [
+    "优惠券要素"
+   ]
+  },
+  {
+   "question": "给老板看的经营汇报帮我组织一下",
+   "intent": "report_generation",
+   "points": [
+    "汇报演示维度"
+   ]
+  },
+  {
+   "question": "这单退款帮我审核一下，订单SKU-1006的",
+   "intent": "order_ops",
+   "points": [
+    "退款审核线索梳理",
+    "金额不由系统承诺"
+   ]
+  },
+  {
+   "question": "电饭煲最近销量下滑什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "新品什么时候能上架",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "把无线蓝牙耳机的价格改成199",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "宣传上说第一算违规吗",
+   "intent": "platform_rules",
+   "points": [
+    "虚假宣传/广告合规"
+   ]
+  },
+  {
+   "question": "平台介入的纠纷单我要提供什么材料",
+   "intent": "cs_escalation",
+   "points": [
+    "平台介入单处理"
+   ]
+  },
+  {
+   "question": "退货率异常怎么分析",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "退款率异常"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机要上架了，帮我写个介绍",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "店铺券和商品券有什么区别",
+   "intent": "campaign_ops",
+   "points": [
+    "优惠券要素"
+   ]
+  },
+  {
+   "question": "把无线蓝牙耳机的价格改成329",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "自动退款功能怎么开",
+   "intent": "sop_howto",
+   "points": [
+    "售后工具配置"
+   ]
+  },
+  {
+   "question": "首页数据看板能自定义吗",
+   "intent": "sop_howto",
+   "points": [
+    "数据看板配置"
+   ]
+  },
+  {
+   "question": "秒杀的库存会不会把正常销售挤掉",
+   "intent": "campaign_ops",
+   "points": [
+    "库存与活动联动"
+   ]
+  },
+  {
+   "question": "缺货的订单怎么处理",
+   "intent": "order_ops",
+   "points": [
+    "发货履约"
+   ]
+  },
+  {
+   "question": "SKU-1006的退款率查一下",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "发布商品的时候规格怎么填",
+   "intent": "sop_howto",
+   "points": [
+    "商品发布类"
+   ]
+  },
+  {
+   "question": "这单超时没发货会怎么样",
+   "intent": "order_ops",
+   "points": [
+    "发货履约"
+   ]
+  },
+  {
+   "question": "把上周数据整理成周报",
+   "intent": "report_generation",
+   "points": [
+    "确认范围后取数",
+    "按概览-环比-明细结构",
+    "注明模拟数据"
+   ]
+  },
+  {
+   "question": "电饭煲的类目能改吗",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "SKU-1001的退款率查一下",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "电饭煲的转化率是多少",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "查一下最近三天的销售额",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "配置一张满599减50的优惠券",
+   "intent": "campaign_ops",
+   "points": [
+    "用工具出活动要素清单",
+    "数值由运营定",
+    "创建走人工"
+   ]
+  },
+  {
+   "question": "退款突然变多怎么排查",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "退款率异常"
+   ]
+  },
+  {
+   "question": "为什么流量下滑这么厉害",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "流量诊断"
+   ]
+  },
+  {
+   "question": "怎么导出订单明细",
+   "intent": "sop_howto",
+   "points": [
+    "导出/下载类"
+   ]
+  },
+  {
+   "question": "儿童书包的转化率是多少",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "运费模板怎么设置",
+   "intent": "sop_howto",
+   "points": [
+    "给出操作步骤框架",
+    "特殊类目提示确认"
+   ]
+  },
+  {
+   "question": "给运动鞋写条详情页文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "运动鞋下架了还能再上架吗",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "看一下防晒霜最近的动销情况",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "最近两周核心经营数据给我一份",
+   "intent": "data_query",
+   "points": [
+    "多指标一起查"
+   ]
+  },
+  {
+   "question": "售后包赔服务怎么加入",
+   "intent": "sop_howto",
+   "points": [
+    "售后工具配置"
+   ]
+  },
+  {
+   "question": "客诉处理不了了，升级给人工",
+   "intent": "cs_escalation",
+   "points": [
+    "客诉升级路径",
+    "记录升级原因与已做处理",
+    "受理回执不是解决承诺"
+   ]
+  },
+  {
+   "question": "发货后改地址怎么操作",
+   "intent": "order_ops",
+   "points": [
+    "改地址/拦截"
+   ]
+  },
+  {
+   "question": "有个异常订单要处理，支付成功没生成",
+   "intent": "order_ops",
+   "points": [
+    "异常订单处理",
+    "用查询工具",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "电饭煲的类目放错了怎么改",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "申诉的时效是多久",
+   "intent": "platform_rules",
+   "points": [
+    "账户违规"
+   ]
+  },
+  {
+   "question": "详情页装修入口在哪",
+   "intent": "sop_howto",
+   "points": [
+    "商品发布类"
+   ]
+  },
+  {
+   "question": "直播时运动鞋的卖点话术怎么讲",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "评价申诉的入口在哪",
+   "intent": "platform_rules",
+   "points": [
+    "评价规则"
+   ]
+  },
+  {
+   "question": "最近退货的人变多了，帮我看看",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "退款率异常"
+   ]
+  },
+  {
+   "question": "帮我算下这道数学题",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "SKU-1001改价到89，怎么操作",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "会员日活动文案写一下",
+   "intent": "content_generate",
+   "points": [
+    "活动文案类"
+   ]
+  },
+  {
+   "question": "嗨，有人吗",
+   "intent": "other",
+   "points": [
+    "问候闲聊"
+   ]
+  },
+  {
+   "question": "运动鞋要上架了，帮我写个介绍",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "这个纠纷单帮我跟进一下",
+   "intent": "cs_escalation",
+   "points": [
+    "客诉升级路径",
+    "记录升级原因与已做处理",
+    "受理回执不是解决承诺"
+   ]
+  },
+  {
+   "question": "给我推荐个电影",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "类目top商家数据分析一下",
+   "intent": "report_generation",
+   "points": [
+    "竞对/行业维度"
+   ]
+  },
+  {
+   "question": "把SKU-1004的价格调整为199",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "保温杯要上架了，帮我写个介绍",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "运动鞋最近销量下滑什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "有个退款申请，帮我看看能不能过",
+   "intent": "order_ops",
+   "points": [
+    "退款审核线索梳理",
+    "金额不由系统承诺"
+   ]
+  },
+  {
+   "question": "发一批199的优惠券怎么弄",
+   "intent": "campaign_ops",
+   "points": [
+    "优惠券要素"
+   ]
+  },
+  {
+   "question": "查一下上周退款率",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "这个月有什么活动可以参加",
+   "intent": "campaign_ops",
+   "points": [
+    "活动报名资质"
+   ]
+  },
+  {
+   "question": "延迟发货有什么处罚",
+   "intent": "platform_rules",
+   "points": [
+    "扣分/处罚规则",
+    "引用知识库依据",
+    "没有的口径不编"
+   ]
+  },
+  {
+   "question": "预售商品的发货时限怎么算",
+   "intent": "platform_rules",
+   "points": [
+    "发货时效规则"
+   ]
+  },
+  {
+   "question": "这周销售额比上周涨了还是跌了",
+   "intent": "data_query",
+   "points": [
+    "对比期查询",
+    "引用环比字段"
+   ]
+  },
+  {
+   "question": "帮我看看销售额，最近一周",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "绝对化用语有哪些",
+   "intent": "platform_rules",
+   "points": [
+    "虚假宣传/广告合规"
+   ]
+  },
+  {
+   "question": "SKU-1004销量异常帮我查查",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "买家催发货，帮我写个回复模板",
+   "intent": "content_generate",
+   "points": [
+    "回复模板"
+   ]
+  },
+  {
+   "question": "实时数据大屏怎么开",
+   "intent": "sop_howto",
+   "points": [
+    "数据看板配置"
+   ]
+  },
+  {
+   "question": "数据是实时的吗",
+   "intent": "data_query",
+   "points": [
+    "数据口径确认"
+   ]
+  },
+  {
+   "question": "把SKU-1004这个商品下掉",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "你好，在吗",
+   "intent": "other",
+   "points": [
+    "问候闲聊"
+   ]
+  },
+  {
+   "question": "SKU-1001改价到329，怎么操作",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "给儿童书包写五点描述",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "评分快不达标了怎么补救",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "店铺评分维度"
+   ]
+  },
+  {
+   "question": "预热和正式期的节奏怎么排",
+   "intent": "campaign_ops",
+   "points": [
+    "跨店/大促节奏"
+   ]
+  },
+  {
+   "question": "优惠券创建的入口在哪",
+   "intent": "sop_howto",
+   "points": [
+    "工具配置类"
+   ]
+  },
+  {
+   "question": "平台小二要举证材料，我都给什么",
+   "intent": "cs_escalation",
+   "points": [
+    "平台介入单处理"
+   ]
+  },
+  {
+   "question": "帮我看看访客数，最近三天",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "发一批329的优惠券怎么弄",
+   "intent": "campaign_ops",
+   "points": [
+    "优惠券要素"
+   ]
+  },
+  {
+   "question": "拼多多的规则你们懂吗",
+   "intent": "other",
+   "points": [
+    "跨平台问题"
+   ]
+  },
+  {
+   "question": "店铺流量掉了怎么排查",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "流量诊断"
+   ]
+  },
+  {
+   "question": "查一下待审核的退款",
+   "intent": "data_query",
+   "points": [
+    "支付/退款明细"
+   ]
+  },
+  {
+   "question": "帮我调整运动鞋的库存",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "这次活动结束帮我出一份复盘报告",
+   "intent": "report_generation",
+   "points": [
+    "大促复盘结构"
+   ]
+  },
+  {
+   "question": "订单SKU-1004付款了没生成，帮我查",
+   "intent": "order_ops",
+   "points": [
+    "异常订单处理",
+    "用查询工具",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "生成本月的月度经营总结",
+   "intent": "report_generation",
+   "points": [
+    "月度总结"
+   ]
+  },
+  {
+   "question": "类目资质要求在哪看",
+   "intent": "platform_rules",
+   "points": [
+    "资质/入驻"
+   ]
+  },
+  {
+   "question": "查一下待审核的异常订单",
+   "intent": "data_query",
+   "points": [
+    "异常订单查询",
+    "列出待处理项",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "行业趋势报告给我一份",
+   "intent": "report_generation",
+   "points": [
+    "竞对/行业维度"
+   ]
+  },
+  {
+   "question": "满减活动的预热文案帮我写一条",
+   "intent": "content_generate",
+   "points": [
+    "活动文案类"
+   ]
+  },
+  {
+   "question": "帮我写一个儿童书包的卖点文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "帮我配一个满减活动",
+   "intent": "campaign_ops",
+   "points": [
+    "用工具出活动要素清单",
+    "数值由运营定",
+    "创建走人工"
+   ]
+  },
+  {
+   "question": "SKU-1001现在库存是多少",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "跟我聊的是程序吧",
+   "intent": "other",
+   "points": [
+    "身份确认"
+   ]
+  },
+  {
+   "question": "秒杀开场的话术来一段",
+   "intent": "content_generate",
+   "points": [
+    "活动文案类"
+   ]
+  },
+  {
+   "question": "运动鞋的类目能改吗",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "帮无线蓝牙耳机写个短视频脚本",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "我想调一下防晒霜的价格",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "你们这个工具挺好用的",
+   "intent": "other",
+   "points": [
+    "夸赞闲聊"
+   ]
+  },
+  {
+   "question": "防晒霜最近销量下滑什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "刷单被查到会怎样",
+   "intent": "platform_rules",
+   "points": [
+    "刷单/违规行为"
+   ]
+  },
+  {
+   "question": "你觉得AI会取代运营吗",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "给防晒霜写五点描述",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "虚构原价有什么后果",
+   "intent": "platform_rules",
+   "points": [
+    "价格合规"
+   ]
+  },
+  {
+   "question": "怎么改商品标题",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "帮我下架SKU-1001",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "这单要拦截，帮我处理一下",
+   "intent": "order_ops",
+   "points": [
+    "改地址/拦截"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机不卖了，怎么下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "儿童书包的点击率突然变低",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "SKU-1001这个月的销量怎么样",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "把无线蓝牙耳机下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "资金对账单在哪个页面",
+   "intent": "sop_howto",
+   "points": [
+    "页面功能类"
+   ]
+  },
+  {
+   "question": "帮电饭煲写个短视频脚本",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "把SKU-1001的库存调到500",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "好评回复模板给我来一个",
+   "intent": "content_generate",
+   "points": [
+    "回复模板"
+   ]
+  },
+  {
+   "question": "买家说收到的电饭煲是坏的，天天催我处理，怎么弄",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "防晒霜要上架了，帮我写个介绍",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "好评返现违规吗",
+   "intent": "platform_rules",
+   "points": [
+    "评价规则"
+   ]
+  },
+  {
+   "question": "延迟发货会被扣多少分",
+   "intent": "platform_rules",
+   "points": [
+    "扣分/处罚规则",
+    "引用知识库依据",
+    "没有的口径不编"
+   ]
+  },
+  {
+   "question": "买家说收到的无线蓝牙耳机是坏的，天天催我处理，怎么弄",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "帮我生成上周的销售周报",
+   "intent": "report_generation",
+   "points": [
+    "确认范围后取数",
+    "按概览-环比-明细结构",
+    "注明模拟数据"
+   ]
+  },
+  {
+   "question": "运动鞋还有多少库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "把保温杯的价格改成89",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "节点处罚是什么意思",
+   "intent": "platform_rules",
+   "points": [
+    "账户违规"
+   ]
+  },
+  {
+   "question": "买家申请退款了，怎么处理",
+   "intent": "order_ops",
+   "points": [
+    "退款审核线索梳理",
+    "金额不由系统承诺"
+   ]
+  },
+  {
+   "question": "查一下最近三天的转化率",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "SKU-1004的收藏量掉得厉害",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "这个客诉工单帮我升级一下",
+   "intent": "cs_escalation",
+   "points": [
+    "客诉升级路径",
+    "记录升级原因与已做处理",
+    "受理回执不是解决承诺"
+   ]
+  },
+  {
+   "question": "大促的蓄水期该做什么",
+   "intent": "campaign_ops",
+   "points": [
+    "跨店/大促节奏"
+   ]
+  },
+  {
+   "question": "帮我把这次促销的数据复盘一下",
+   "intent": "report_generation",
+   "points": [
+    "大促复盘结构"
+   ]
+  },
+  {
+   "question": "有没有需要人工介入的订单",
+   "intent": "data_query",
+   "points": [
+    "异常订单查询",
+    "列出待处理项",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "把运动鞋下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "把无线蓝牙耳机的价格改成89",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "定制商品可以不按48小时发货吗",
+   "intent": "platform_rules",
+   "points": [
+    "发货时效规则"
+   ]
+  },
+  {
+   "question": "写一段运动鞋的推广文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "最近一周的销售额怎么样",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "转化下滑帮我分析一下",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "区分事实与推测",
+    "先查数据再归因"
+   ]
+  },
+  {
+   "question": "手上五个客诉先处理哪个",
+   "intent": "cs_escalation",
+   "points": [
+    "多客诉优先级"
+   ]
+  },
+  {
+   "question": "SKU-1004现在库存是多少",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "最近三天的转化率怎么样",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "超时发货平台怎么罚",
+   "intent": "platform_rules",
+   "points": [
+    "扣分/处罚规则",
+    "引用知识库依据",
+    "没有的口径不编"
+   ]
+  },
+  {
+   "question": "写一段电饭煲的推广文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "儿童书包下架了还能再上架吗",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "SKU-1004改价到89，怎么操作",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "防晒霜库存改一下，改成300",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "帮我写一个保温杯的卖点文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "电饭煲上周卖了多少单",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "把防晒霜下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "把保温杯的价格改成199",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "这个月退款率什么水平",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "防晒霜还有多少库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机的类目能改吗",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "买家要换货怎么处理",
+   "intent": "order_ops",
+   "points": [
+    "换货流程"
+   ]
+  },
+  {
+   "question": "食品类目入驻需要什么资质",
+   "intent": "platform_rules",
+   "points": [
+    "资质/入驻"
+   ]
+  },
+  {
+   "question": "双11的玩法组合给我个思路",
+   "intent": "campaign_ops",
+   "points": [
+    "跨店/大促节奏"
+   ]
+  },
+  {
+   "question": "客服分流怎么配置",
+   "intent": "sop_howto",
+   "points": [
+    "工具配置类"
+   ]
+  },
+  {
+   "question": "保温杯还有多少库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "运费险理赔流程在哪看",
+   "intent": "sop_howto",
+   "points": [
+    "售后工具配置"
+   ]
+  },
+  {
+   "question": "保温杯不卖了，怎么下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "买家投诉到平台了，帮我处理",
+   "intent": "cs_escalation",
+   "points": [
+    "客诉升级路径",
+    "记录升级原因与已做处理",
+    "受理回执不是解决承诺"
+   ]
+  },
+  {
+   "question": "这单退款帮我审核一下，订单SKU-1001的",
+   "intent": "order_ops",
+   "points": [
+    "退款审核线索梳理",
+    "金额不由系统承诺"
+   ]
+  },
+  {
+   "question": "我想调一下无线蓝牙耳机的价格",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "电饭煲不卖了，怎么下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "最近一周店铺访客有多少",
+   "intent": "data_query",
+   "points": [
+    "流量指标查询"
+   ]
+  },
+  {
+   "question": "给投资人的运营数据怎么展示",
+   "intent": "report_generation",
+   "points": [
+    "汇报演示维度"
+   ]
+  },
+  {
+   "question": "买家说要打12315投诉，我该怎么办",
+   "intent": "cs_escalation",
+   "points": [
+    "监管投诉风险"
+   ]
+  },
+  {
+   "question": "你是机器人还是真人",
+   "intent": "other",
+   "points": [
+    "身份确认"
+   ]
+  },
+  {
+   "question": "最近三天比上一个三天卖得好吗",
+   "intent": "data_query",
+   "points": [
+    "对比期查询",
+    "引用环比字段"
+   ]
+  },
+  {
+   "question": "大促收官的感谢文案",
+   "intent": "content_generate",
+   "points": [
+    "活动文案类"
+   ]
+  },
+  {
+   "question": "一周内退款率高不高",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "滞销的防晒霜怎么处理",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "今天太累了不想干活",
+   "intent": "other",
+   "points": [
+    "吐槽闲聊"
+   ]
+  },
+  {
+   "question": "库存数不对，怎么修改",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "GMV波动大怎么分析",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "GMV维度"
+   ]
+  },
+  {
+   "question": "出一份竞品价格对比报告",
+   "intent": "report_generation",
+   "points": [
+    "竞对/行业维度"
+   ]
+  },
+  {
+   "question": "品牌授权书过期了还能用吗",
+   "intent": "platform_rules",
+   "points": [
+    "知识产权"
+   ]
+  },
+  {
+   "question": "这个月销售不及预期，帮我诊断",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "GMV维度"
+   ]
+  },
+  {
+   "question": "儿童书包库存改一下，改成300",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "SKU-1001销量异常帮我查查",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "商品详情页图片怎么换",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "给儿童书包写条详情页文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "直播时保温杯的卖点话术怎么讲",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "上周的退款率是多少",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "查一下最近三天的访客数",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "保温杯库存改一下，改成300",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "客户要求高额赔偿，我要不要答应",
+   "intent": "cs_escalation",
+   "points": [
+    "赔付协商"
+   ]
+  },
+  {
+   "question": "商品视频怎么上传",
+   "intent": "sop_howto",
+   "points": [
+    "商品发布类"
+   ]
+  },
+  {
+   "question": "昨天店铺流量多少",
+   "intent": "data_query",
+   "points": [
+    "流量指标查询"
+   ]
+  },
+  {
+   "question": "原价随便标吗",
+   "intent": "platform_rules",
+   "points": [
+    "价格合规"
+   ]
+  },
+  {
+   "question": "尺码不对换货流程是什么",
+   "intent": "order_ops",
+   "points": [
+    "换货流程"
+   ]
+  },
+  {
+   "question": "GMV跌了两周，帮我找找原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "GMV维度"
+   ]
+  },
+  {
+   "question": "能联系买家删差评吗",
+   "intent": "platform_rules",
+   "points": [
+    "评价规则"
+   ]
+  },
+  {
+   "question": "怎么看店铺的违规记录",
+   "intent": "sop_howto",
+   "points": [
+    "页面功能类"
+   ]
+  },
+  {
+   "question": "买家说收到的防晒霜是坏的，天天催我处理，怎么弄",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "修改商品规格的操作路径",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "保温杯下架了还能再上架吗",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "把SKU-1001的价格调整为199",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机上周卖了多少单",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "最近三天的退款率是多少",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "配置一张满329减50的优惠券",
+   "intent": "campaign_ops",
+   "points": [
+    "用工具出活动要素清单",
+    "数值由运营定",
+    "创建走人工"
+   ]
+  },
+  {
+   "question": "上周退款率异常，出个专项报告",
+   "intent": "report_generation",
+   "points": [
+    "专项异常报告"
+   ]
+  },
+  {
+   "question": "帮我下架SKU-1004",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "想搞个满减，怎么配",
+   "intent": "campaign_ops",
+   "points": [
+    "用工具出活动要素清单",
+    "数值由运营定",
+    "创建走人工"
+   ]
+  },
+  {
+   "question": "我想调一下电饭煲的价格",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "给无线蓝牙耳机写条详情页文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "SKU-1006销量异常帮我查查",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "防晒霜不卖了，怎么下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "帮我写一个运动鞋的卖点文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "大促真的太卷了",
+   "intent": "other",
+   "points": [
+    "吐槽闲聊"
+   ]
+  },
+  {
+   "question": "被人投诉商标侵权怎么办",
+   "intent": "platform_rules",
+   "points": [
+    "知识产权"
+   ]
+  },
+  {
+   "question": "三天内退款率高不高",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "帮我下架SKU-1006",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "满减活动的预算怎么估",
+   "intent": "campaign_ops",
+   "points": [
+    "活动预算/要素确认"
+   ]
+  },
+  {
+   "question": "昨天的支付失败订单有多少",
+   "intent": "data_query",
+   "points": [
+    "支付/退款明细"
+   ]
+  },
+  {
+   "question": "运动鞋上周卖了多少单",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "直播时无线蓝牙耳机的卖点话术怎么讲",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "把SKU-1001的价格调整为329",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "电饭煲的点击率突然变低",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "类目保证金标准哪里查",
+   "intent": "platform_rules",
+   "points": [
+    "保证金/费用"
+   ]
+  },
+  {
+   "question": "查一下最近一周的销售额",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "写一段防晒霜的推广文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "保温杯卖不动，给我个建议",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "查一下最近三天的退款率",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "帮我看下同类目大盘数据",
+   "intent": "report_generation",
+   "points": [
+    "竞对/行业维度"
+   ]
+  },
+  {
+   "question": "发货超时扣几分",
+   "intent": "platform_rules",
+   "points": [
+    "扣分/处罚规则",
+    "引用知识库依据",
+    "没有的口径不编"
+   ]
+  },
+  {
+   "question": "入驻的材料有哪些",
+   "intent": "platform_rules",
+   "points": [
+    "资质/入驻"
+   ]
+  },
+  {
+   "question": "明天股票会涨吗",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "儿童书包卖不动，给我个建议",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "改类目会影响流量吗",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "怎么给买家补开发票",
+   "intent": "sop_howto",
+   "points": [
+    "发票类操作"
+   ]
+  },
+  {
+   "question": "刷单平台会怎么处理",
+   "intent": "platform_rules",
+   "points": [
+    "刷单/违规行为"
+   ]
+  },
+  {
+   "question": "把保温杯下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "最近三天的访客数怎么样",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "直播时儿童书包的卖点话术怎么讲",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "怎么给不同地区设不同运费",
+   "intent": "sop_howto",
+   "points": [
+    "给出操作步骤框架",
+    "特殊类目提示确认"
+   ]
+  },
+  {
+   "question": "被买家申请平台介入了，怎么办",
+   "intent": "cs_escalation",
+   "points": [
+    "平台介入单处理"
+   ]
+  },
+  {
+   "question": "最近三天的销售额怎么样",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "儿童书包要上架了，帮我写个介绍",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机下架了还能再上架吗",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "帮儿童书包写个短视频脚本",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "最近三天的退款率怎么样",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "想上个秒杀，流程是什么",
+   "intent": "campaign_ops",
+   "points": [
+    "秒杀要素"
+   ]
+  },
+  {
+   "question": "开店要交多少保证金",
+   "intent": "platform_rules",
+   "points": [
+    "资质/入驻"
+   ]
+  },
+  {
+   "question": "销售额有环比数据吗",
+   "intent": "data_query",
+   "points": [
+    "对比期查询",
+    "引用环比字段"
+   ]
+  },
+  {
+   "question": "订单号SKU-1006到哪一步了",
+   "intent": "order_ops",
+   "points": [
+    "订单查询类"
+   ]
+  },
+  {
+   "question": "最近两周店铺访客有多少",
+   "intent": "data_query",
+   "points": [
+    "流量指标查询"
+   ]
+  },
+  {
+   "question": "秒杀活动怎么参加",
+   "intent": "campaign_ops",
+   "points": [
+    "秒杀要素"
+   ]
+  },
+  {
+   "question": "这个月卖不动，问题在哪",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "把SKU-1001这个商品下掉",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "订单数据从哪里下载",
+   "intent": "sop_howto",
+   "points": [
+    "导出/下载类"
+   ]
+  },
+  {
+   "question": "给保温杯写五点描述",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "帮我调整防晒霜的库存",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "违规扣分什么时候清零",
+   "intent": "platform_rules",
+   "points": [
+    "账户违规"
+   ]
+  },
+  {
+   "question": "写一段保温杯的推广文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "物流弄丢件我找谁赔",
+   "intent": "cs_escalation",
+   "points": [
+    "物流损责划分"
+   ]
+  },
+  {
+   "question": "之前的客诉工单两周了还没结果，帮我催一下",
+   "intent": "cs_escalation",
+   "points": [
+    "催办"
+   ]
+  },
+  {
+   "question": "帮我砍一刀拼多多链接",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "买家只要退运费怎么处理",
+   "intent": "order_ops",
+   "points": [
+    "部分退款"
+   ]
+  },
+  {
+   "question": "配置一张满89减50的优惠券",
+   "intent": "campaign_ops",
+   "points": [
+    "用工具出活动要素清单",
+    "数值由运营定",
+    "创建走人工"
+   ]
+  },
+  {
+   "question": "多件商品退一件怎么退",
+   "intent": "order_ops",
+   "points": [
+    "部分退款"
+   ]
+  },
+  {
+   "question": "一个订单怎么拆成两个包裹",
+   "intent": "order_ops",
+   "points": [
+    "合并/拆单"
+   ]
+  },
+  {
+   "question": "最近三天核心经营数据给我一份",
+   "intent": "data_query",
+   "points": [
+    "多指标一起查"
+   ]
+  },
+  {
+   "question": "部分退款的金额怎么算",
+   "intent": "order_ops",
+   "points": [
+    "部分退款"
+   ]
+  },
+  {
+   "question": "SKU-1004这个月的销量怎么样",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "帮我看看退款率，最近三天",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "抖音小店怎么开店",
+   "intent": "other",
+   "points": [
+    "跨平台问题"
+   ]
+  },
+  {
+   "question": "延迟发货有什么后果",
+   "intent": "order_ops",
+   "points": [
+    "发货履约"
+   ]
+  },
+  {
+   "question": "滞销的运动鞋怎么处理",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "防晒霜库存够不够大促",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "订单SKU-1006付款了没生成，帮我查",
+   "intent": "order_ops",
+   "points": [
+    "异常订单处理",
+    "用查询工具",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "写一段儿童书包的推广文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "部分退款怎么操作",
+   "intent": "order_ops",
+   "points": [
+    "部分退款"
+   ]
+  },
+  {
+   "question": "家居类目上周GMV多少",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "转化率这两周一直在掉，什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "区分事实与推测",
+    "先查数据再归因"
+   ]
+  },
+  {
+   "question": "帮保温杯写个短视频脚本",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "运动鞋卖不动，给我个建议",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "店铺子账号怎么设置权限",
+   "intent": "sop_howto",
+   "points": [
+    "工具配置类"
+   ]
+  },
+  {
+   "question": "订单被拦截了怎么恢复",
+   "intent": "order_ops",
+   "points": [
+    "订单查询类"
+   ]
+  },
+  {
+   "question": "防晒霜的转化率是多少",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "直播时防晒霜的卖点话术怎么讲",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "看一下儿童书包最近的动销情况",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "买家要赔付不然就差评，怎么处理",
+   "intent": "cs_escalation",
+   "points": [
+    "赔付协商"
+   ]
+  },
+  {
+   "question": "运动鞋库存改一下，改成300",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "查一下SKU-1001的库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "保温杯上周卖了多少单",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "你是AI吗",
+   "intent": "other",
+   "points": [
+    "身份确认"
+   ]
+  },
+  {
+   "question": "店铺评分一直在掉，什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "店铺评分维度"
+   ]
+  },
+  {
+   "question": "儿童书包的类目能改吗",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "买家说要去社交媒体曝光，怎么办",
+   "intent": "cs_escalation",
+   "points": [
+    "舆情风险"
+   ]
+  },
+  {
+   "question": "给电饭煲写条详情页文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "今天天气怎么样",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "SKU-1006这个月的销量怎么样",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "SKU-1006上周卖出去几件",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "运动鞋的转化率是多少",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "保温杯的类目能改吗",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "合并支付的单子怎么分开退款",
+   "intent": "order_ops",
+   "points": [
+    "合并/拆单"
+   ]
+  },
+  {
+   "question": "订单数据能导出吗",
+   "intent": "report_generation",
+   "points": [
+    "导出诉求",
+    "真实导出走人工"
+   ]
+  },
+  {
+   "question": "满减券怎么设置",
+   "intent": "campaign_ops",
+   "points": [
+    "用工具出活动要素清单",
+    "数值由运营定",
+    "创建走人工"
+   ]
+  },
+  {
+   "question": "怎么批量打印发货单",
+   "intent": "order_ops",
+   "points": [
+    "发货履约"
+   ]
+  },
+  {
+   "question": "订单还没发货，能改地址吗",
+   "intent": "order_ops",
+   "points": [
+    "改地址/拦截"
+   ]
+  },
+  {
+   "question": "最近两周的退款率是多少",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "客诉工单怎么排优先级",
+   "intent": "cs_escalation",
+   "points": [
+    "多客诉优先级"
+   ]
+  },
+  {
+   "question": "出一份最近两周的经营周报",
+   "intent": "report_generation",
+   "points": [
+    "确认范围后取数",
+    "按概览-环比-明细结构",
+    "注明模拟数据"
+   ]
+  },
+  {
+   "question": "电饭煲要上架了，帮我写个介绍",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "春节发货安排的公告帮我拟一个",
+   "intent": "content_generate",
+   "points": [
+    "店铺公告"
+   ]
+  },
+  {
+   "question": "导出上周的销售明细",
+   "intent": "report_generation",
+   "points": [
+    "导出诉求",
+    "真实导出走人工"
+   ]
+  },
+  {
+   "question": "促销预算给我个思路",
+   "intent": "campaign_ops",
+   "points": [
+    "活动预算/要素确认"
+   ]
+  },
+  {
+   "question": "投诉处理太慢了，帮我催催",
+   "intent": "cs_escalation",
+   "points": [
+    "催办"
+   ]
+  },
+  {
+   "question": "我想调一下运动鞋的价格",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "服务分下滑帮我分析下",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "店铺评分维度"
+   ]
+  },
+  {
+   "question": "电饭煲库存够不够大促",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "怎么把商品数据导出来",
+   "intent": "sop_howto",
+   "points": [
+    "导出/下载类"
+   ]
+  },
+  {
+   "question": "响应挺快啊",
+   "intent": "other",
+   "points": [
+    "夸赞闲聊"
+   ]
+  },
+  {
+   "question": "工单一直没回复，帮忙催一下进度",
+   "intent": "cs_escalation",
+   "points": [
+    "催办"
+   ]
+  },
+  {
+   "question": "帮我写一个电饭煲的卖点文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "上周的销售额是多少",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "保温杯的点击率突然变低",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "买家发来的照片看起来是运输损坏，我要做什么",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "SKU-1001的收藏量掉得厉害",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "开发票的抬头信息在哪里维护",
+   "intent": "sop_howto",
+   "points": [
+    "发票类操作"
+   ]
+  },
+  {
+   "question": "订单号SKU-1004到哪一步了",
+   "intent": "order_ops",
+   "points": [
+    "订单查询类"
+   ]
+  },
+  {
+   "question": "最近一周的退款率怎么样",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "把SKU-1001的价格调整为599",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "退货地址怎么设置多个",
+   "intent": "sop_howto",
+   "points": [
+    "售后工具配置"
+   ]
+  },
+  {
+   "question": "生成大促复盘",
+   "intent": "report_generation",
+   "points": [
+    "大促复盘结构"
+   ]
+  },
+  {
+   "question": "保温杯最近销量下滑什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "防晒霜上周卖了多少单",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "SKU规格怎么新增",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "活动力度怎么定比较稳",
+   "intent": "campaign_ops",
+   "points": [
+    "活动预算/要素确认"
+   ]
+  },
+  {
+   "question": "滞销的无线蓝牙耳机怎么处理",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "买家恶意差评能申诉吗",
+   "intent": "platform_rules",
+   "points": [
+    "评价规则"
+   ]
+  },
+  {
+   "question": "买家说收到的儿童书包是坏的，天天催我处理，怎么弄",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "转化率这三天一直在掉，什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "区分事实与推测",
+    "先查数据再归因"
+   ]
+  },
+  {
+   "question": "你会写诗吗",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "退款率怎么算的",
+   "intent": "data_query",
+   "points": [
+    "数据口径确认"
+   ]
+  },
+  {
+   "question": "缺货延迟发货会被处罚吗",
+   "intent": "platform_rules",
+   "points": [
+    "发货时效规则"
+   ]
+  },
+  {
+   "question": "退款率最近偏高，什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "退款率异常"
+   ]
+  },
+  {
+   "question": "店铺券和商品券怎么搭配着发",
+   "intent": "sop_howto",
+   "points": [
+    "营销工具配置"
+   ]
+  },
+  {
+   "question": "换货中途买家反悔了怎么办",
+   "intent": "order_ops",
+   "points": [
+    "换货流程"
+   ]
+  },
+  {
+   "question": "批量开票怎么操作",
+   "intent": "sop_howto",
+   "points": [
+    "发票类操作"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机最近销量下滑什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "最近一周核心经营数据给我一份",
+   "intent": "data_query",
+   "points": [
+    "多指标一起查"
+   ]
+  },
+  {
+   "question": "快手小店和你们这一样吗",
+   "intent": "other",
+   "points": [
+    "跨平台问题"
+   ]
+  },
+  {
+   "question": "配置一张满199减50的优惠券",
+   "intent": "campaign_ops",
+   "points": [
+    "用工具出活动要素清单",
+    "数值由运营定",
+    "创建走人工"
+   ]
+  },
+  {
+   "question": "收到破损件投诉，流程是什么",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "最近一周的退款率是多少",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "两周内退款率高不高",
+   "intent": "data_query",
+   "points": [
+    "退款率查询",
+    "说明口径为逐日平均"
+   ]
+  },
+  {
+   "question": "新客券和老客券怎么分配",
+   "intent": "campaign_ops",
+   "points": [
+    "人群/投放"
+   ]
+  },
+  {
+   "question": "电饭煲还有多少库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "报名秒杀活动要准备什么",
+   "intent": "campaign_ops",
+   "points": [
+    "秒杀要素"
+   ]
+  },
+  {
+   "question": "现在有哪些异常订单要处理",
+   "intent": "data_query",
+   "points": [
+    "异常订单查询",
+    "列出待处理项",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "SKU-1004的标题优化一下",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "GMV跌了一周，帮我找找原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "GMV维度"
+   ]
+  },
+  {
+   "question": "把订单明细导出来给我",
+   "intent": "report_generation",
+   "points": [
+    "导出诉求",
+    "真实导出走人工"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机库存够不够大促",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "帮我导一份商品数据表",
+   "intent": "report_generation",
+   "points": [
+    "导出诉求",
+    "真实导出走人工"
+   ]
+  },
+  {
+   "question": "运动鞋不卖了，怎么下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "hello",
+   "intent": "other",
+   "points": [
+    "问候闲聊"
+   ]
+  },
+  {
+   "question": "SKU-1006的收藏量掉得厉害",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "帮我看看销售额，最近三天",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "微商怎么做",
+   "intent": "other",
+   "points": [
+    "跨平台问题"
+   ]
+  },
+  {
+   "question": "我想调一下保温杯的价格",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "买家要求分开寄，怎么操作",
+   "intent": "order_ops",
+   "points": [
+    "合并/拆单"
+   ]
+  },
+  {
+   "question": "上周的访客数是多少",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "投放预算怎么分配到各渠道",
+   "intent": "campaign_ops",
+   "points": [
+    "人群/投放"
+   ]
+  },
+  {
+   "question": "活动期间库存要备多少",
+   "intent": "campaign_ops",
+   "points": [
+    "库存与活动联动"
+   ]
+  },
+  {
+   "question": "大盘数据帮我查一下",
+   "intent": "data_query",
+   "points": [
+    "多指标一起查"
+   ]
+  },
+  {
+   "question": "防晒霜下架了还能再上架吗",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "怎么设置商品包邮门槛",
+   "intent": "sop_howto",
+   "points": [
+    "商品发布类"
+   ]
+  },
+  {
+   "question": "访客数是去重的吗",
+   "intent": "data_query",
+   "points": [
+    "数据口径确认"
+   ]
+  },
+  {
+   "question": "帮我写一个无线蓝牙耳机的卖点文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "怎么订阅每日经营数据",
+   "intent": "sop_howto",
+   "points": [
+    "数据看板配置"
+   ]
+  },
+  {
+   "question": "防晒霜的点击率突然变低",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "把电饭煲下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "之前的客诉工单一周了还没结果，帮我催一下",
+   "intent": "cs_escalation",
+   "points": [
+    "催办"
+   ]
+  },
+  {
+   "question": "看一下保温杯最近的动销情况",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "大促报名需要什么资质",
+   "intent": "campaign_ops",
+   "points": [
+    "活动报名资质"
+   ]
+  },
+  {
+   "question": "保温杯的转化率是多少",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "发一批89的优惠券怎么弄",
+   "intent": "campaign_ops",
+   "points": [
+    "优惠券要素"
+   ]
+  },
+  {
+   "question": "访客数突然少了，什么情况",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "流量诊断"
+   ]
+  },
+  {
+   "question": "补单有什么风险",
+   "intent": "platform_rules",
+   "points": [
+    "刷单/违规行为"
+   ]
+  },
+  {
+   "question": "店铺评分在哪里看",
+   "intent": "sop_howto",
+   "points": [
+    "页面功能类"
+   ]
+  },
+  {
+   "question": "上周的转化率是多少",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "帮我写个店铺公告",
+   "intent": "content_generate",
+   "points": [
+    "店铺公告"
+   ]
+  },
+  {
+   "question": "你是哪个公司开发的",
+   "intent": "other",
+   "points": [
+    "身份确认"
+   ]
+  },
+  {
+   "question": "滞销的保温杯怎么处理",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "把儿童书包下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "看一下电饭煲最近的动销情况",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "把SKU-1001的价格调整为89",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "消费者投诉到平台了会有什么影响",
+   "intent": "cs_escalation",
+   "points": [
+    "监管投诉风险"
+   ]
+  },
+  {
+   "question": "主图点击率下滑怎么回事",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "给保温杯写条详情页文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "退店后保证金什么时候退",
+   "intent": "platform_rules",
+   "points": [
+    "保证金/费用"
+   ]
+  },
+  {
+   "question": "活动价和日常价的库存怎么分",
+   "intent": "campaign_ops",
+   "points": [
+    "库存与活动联动"
+   ]
+  },
+  {
+   "question": "帮我写一个防晒霜的卖点文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "看一下运动鞋最近的动销情况",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "促销价有什么规定",
+   "intent": "platform_rules",
+   "points": [
+    "价格合规"
+   ]
+  },
+  {
+   "question": "拼团活动怎么创建",
+   "intent": "sop_howto",
+   "points": [
+    "营销工具配置"
+   ]
+  },
+  {
+   "question": "帮我看看转化率，最近三天",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "退款审核卡住了怎么办",
+   "intent": "order_ops",
+   "points": [
+    "退款审核线索梳理",
+    "金额不由系统承诺"
+   ]
+  },
+  {
+   "question": "退货数据整理成报告",
+   "intent": "report_generation",
+   "points": [
+    "指定指标的报告"
+   ]
+  },
+  {
+   "question": "给无线蓝牙耳机写五点描述",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "防晒霜的类目放错了怎么改",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "会员折扣怎么设置",
+   "intent": "sop_howto",
+   "points": [
+    "营销工具配置"
+   ]
+  },
+  {
+   "question": "帮我调整儿童书包的库存",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "帮我调整电饭煲的库存",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "比上次好用多了",
+   "intent": "other",
+   "points": [
+    "夸赞闲聊"
+   ]
+  },
+  {
+   "question": "两个订单能合并发货吗",
+   "intent": "order_ops",
+   "points": [
+    "合并/拆单"
+   ]
+  },
+  {
+   "question": "防晒霜的类目能改吗",
+   "intent": "product_ops",
+   "points": [
+    "商品信息修改"
+   ]
+  },
+  {
+   "question": "帮我写段代码行不行",
+   "intent": "other",
+   "points": [
+    "说明职责范围",
+    "引导业务问题"
+   ]
+  },
+  {
+   "question": "商品体检功能在哪",
+   "intent": "sop_howto",
+   "points": [
+    "页面功能类"
+   ]
+  },
+  {
+   "question": "这周流量情况怎么样",
+   "intent": "data_query",
+   "points": [
+    "流量指标查询"
+   ]
+  },
+  {
+   "question": "之前的客诉工单三天了还没结果，帮我催一下",
+   "intent": "cs_escalation",
+   "points": [
+    "催办"
+   ]
+  },
+  {
+   "question": "最近三天店铺访客有多少",
+   "intent": "data_query",
+   "points": [
+    "流量指标查询"
+   ]
+  },
+  {
+   "question": "看一下无线蓝牙耳机最近的动销情况",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "SKU-1006现在库存是多少",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "售假投诉的申诉材料",
+   "intent": "platform_rules",
+   "points": [
+    "知识产权"
+   ]
+  },
+  {
+   "question": "帮运动鞋写个短视频脚本",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "优惠券的门槛怎么设",
+   "intent": "campaign_ops",
+   "points": [
+    "优惠券要素"
+   ]
+  },
+  {
+   "question": "活动报名入口在哪",
+   "intent": "campaign_ops",
+   "points": [
+    "活动报名资质"
+   ]
+  },
+  {
+   "question": "GMV环比怎么样",
+   "intent": "data_query",
+   "points": [
+    "对比期查询",
+    "引用环比字段"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机的点击率突然变低",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "怎么把商品重新上架",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机库存改一下，改成300",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "买家说没收到货，我这边显示已签收",
+   "intent": "order_ops",
+   "points": [
+    "订单查询类"
+   ]
+  },
+  {
+   "question": "库存积压怎么办",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "帮我看下这个订单什么状态",
+   "intent": "order_ops",
+   "points": [
+    "订单查询类"
+   ]
+  },
+  {
+   "question": "年费和技术服务费怎么算",
+   "intent": "platform_rules",
+   "points": [
+    "保证金/费用"
+   ]
+  },
+  {
+   "question": "把这次客诉情况汇总成报告",
+   "intent": "report_generation",
+   "points": [
+    "专项异常报告"
+   ]
+  },
+  {
+   "question": "活动卖爆了缺货怎么办",
+   "intent": "campaign_ops",
+   "points": [
+    "库存与活动联动"
+   ]
+  },
+  {
+   "question": "订单SKU-1001付款了没生成，帮我查",
+   "intent": "order_ops",
+   "points": [
+    "异常订单处理",
+    "用查询工具",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "保证金被扣了怎么申诉",
+   "intent": "platform_rules",
+   "points": [
+    "保证金/费用"
+   ]
+  },
+  {
+   "question": "流量数据帮我分析一份",
+   "intent": "report_generation",
+   "points": [
+    "指定指标的报告"
+   ]
+  },
+  {
+   "question": "帮防晒霜写个短视频脚本",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "物流投诉的专项分析",
+   "intent": "report_generation",
+   "points": [
+    "专项异常报告"
+   ]
+  },
+  {
+   "question": "最近两周比上一个两周卖得好吗",
+   "intent": "data_query",
+   "points": [
+    "对比期查询",
+    "引用环比字段"
+   ]
+  },
+  {
+   "question": "商品属性怎么批量修改",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "被投诉虚假宣传了，严重吗",
+   "intent": "cs_escalation",
+   "points": [
+    "监管投诉风险"
+   ]
+  },
+  {
+   "question": "把SKU-1004的库存调到500",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "发一批599的优惠券怎么弄",
+   "intent": "campaign_ops",
+   "points": [
+    "优惠券要素"
+   ]
+  },
+  {
+   "question": "买家说收到的运动鞋是坏的，天天催我处理，怎么弄",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "GMV跌了三天，帮我找找原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "GMV维度"
+   ]
+  },
+  {
+   "question": "DSR评分异常怎么排查",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "店铺评分维度"
+   ]
+  },
+  {
+   "question": "给运动鞋写五点描述",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "销量突然掉了，帮我分析",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "买家要改收货地址，已经发货了怎么办",
+   "intent": "order_ops",
+   "points": [
+    "改地址/拦截"
+   ]
+  },
+  {
+   "question": "出一份最近三天的经营周报",
+   "intent": "report_generation",
+   "points": [
+    "确认范围后取数",
+    "按概览-环比-明细结构",
+    "注明模拟数据"
+   ]
+  },
+  {
+   "question": "查一下SKU-1006的库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "周会的数据要点帮我列出来",
+   "intent": "report_generation",
+   "points": [
+    "汇报演示维度"
+   ]
+  },
+  {
+   "question": "电饭煲库存改一下，改成300",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "SKU-1001改价到599，怎么操作",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "电子发票开错了怎么作废重开",
+   "intent": "sop_howto",
+   "points": [
+    "发票类操作"
+   ]
+  },
+  {
+   "question": "查一下最近一周的退款率",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "搭配套餐怎么配置",
+   "intent": "sop_howto",
+   "points": [
+    "营销工具配置"
+   ]
+  },
+  {
+   "question": "做一份本月经营分析",
+   "intent": "report_generation",
+   "points": [
+    "月度总结"
+   ]
+  },
+  {
+   "question": "儿童书包还有多少库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "导出账单的入口在哪",
+   "intent": "sop_howto",
+   "points": [
+    "导出/下载类"
+   ]
+  },
+  {
+   "question": "后台怎么批量修改运费模板",
+   "intent": "sop_howto",
+   "points": [
+    "给出操作步骤框架",
+    "特殊类目提示确认"
+   ]
+  },
+  {
+   "question": "转化率为什么突然跌了",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "区分事实与推测",
+    "先查数据再归因"
+   ]
+  },
+  {
+   "question": "我想调一下儿童书包的价格",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "快递员派送损坏谁担责",
+   "intent": "cs_escalation",
+   "points": [
+    "物流损责划分"
+   ]
+  },
+  {
+   "question": "来一份这周的店铺周报",
+   "intent": "report_generation",
+   "points": [
+    "确认范围后取数",
+    "按概览-环比-明细结构",
+    "注明模拟数据"
+   ]
+  },
+  {
+   "question": "支付成功但订单没出现，怎么办",
+   "intent": "order_ops",
+   "points": [
+    "异常订单处理",
+    "用查询工具",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "给电饭煲写五点描述",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "有人威胁举报到市监局，怎么应对",
+   "intent": "cs_escalation",
+   "points": [
+    "监管投诉风险"
+   ]
+  },
+  {
+   "question": "运动鞋的点击率突然变低",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "季度述职的数据部分帮我整理",
+   "intent": "report_generation",
+   "points": [
+    "汇报演示维度"
+   ]
+  },
+  {
+   "question": "生成一条发货延迟的店铺公告",
+   "intent": "content_generate",
+   "points": [
+    "店铺公告"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机的类目放错了怎么改",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "给防晒霜写条详情页文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "出一份退款率专项分析",
+   "intent": "report_generation",
+   "points": [
+    "指定指标的报告"
+   ]
+  },
+  {
+   "question": "48小时发货是强制的吗",
+   "intent": "platform_rules",
+   "points": [
+    "发货时效规则"
+   ]
+  },
+  {
+   "question": "直通车和活动怎么配合",
+   "intent": "campaign_ops",
+   "points": [
+    "人群/投放"
+   ]
+  },
+  {
+   "question": "看一下整体经营情况",
+   "intent": "data_query",
+   "points": [
+    "多指标一起查"
+   ]
+  },
+  {
+   "question": "写一条物流延迟的安抚公告",
+   "intent": "content_generate",
+   "points": [
+    "店铺公告"
+   ]
+  },
+  {
+   "question": "换货的运费谁出",
+   "intent": "order_ops",
+   "points": [
+    "换货流程"
+   ]
+  },
+  {
+   "question": "运动鞋库存够不够大促",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "买家说收到的保温杯是坏的，天天催我处理，怎么弄",
+   "intent": "cs_escalation",
+   "points": [
+    "记录事实不下结论"
+   ]
+  },
+  {
+   "question": "负面评价被顶到首页了怎么处理",
+   "intent": "cs_escalation",
+   "points": [
+    "舆情风险"
+   ]
+  },
+  {
+   "question": "写一段无线蓝牙耳机的推广文案",
+   "intent": "content_generate",
+   "points": [
+    "生成内容+合规提醒",
+    "无绝对化用语"
+   ]
+  },
+  {
+   "question": "虚假宣传有什么处罚",
+   "intent": "platform_rules",
+   "points": [
+    "虚假宣传/广告合规"
+   ]
+  },
+  {
+   "question": "转化下滑的分析报告帮我整理",
+   "intent": "report_generation",
+   "points": [
+    "专项异常报告"
+   ]
+  },
+  {
+   "question": "赔偿金额谈不拢怎么办",
+   "intent": "cs_escalation",
+   "points": [
+    "赔付协商"
+   ]
+  },
+  {
+   "question": "出一份最近一周的经营周报",
+   "intent": "report_generation",
+   "points": [
+    "确认范围后取数",
+    "按概览-环比-明细结构",
+    "注明模拟数据"
+   ]
+  },
+  {
+   "question": "把无线蓝牙耳机的价格改成599",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "电饭煲下架了还能再上架吗",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "把销售额、订单量、转化率一起拉出来",
+   "intent": "data_query",
+   "points": [
+    "多指标一起查"
+   ]
+  },
+  {
+   "question": "新品上架流程是什么",
+   "intent": "product_ops",
+   "points": [
+    "上架咨询"
+   ]
+  },
+  {
+   "question": "竞品数据在哪里看",
+   "intent": "sop_howto",
+   "points": [
+    "数据看板配置"
+   ]
+  },
+  {
+   "question": "这个客诉多久能有结果",
+   "intent": "cs_escalation",
+   "points": [
+    "催办"
+   ]
+  },
+  {
+   "question": "保温杯的类目放错了怎么改",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "又是加班的一天",
+   "intent": "other",
+   "points": [
+    "吐槽闲聊"
+   ]
+  },
+  {
+   "question": "帮我调整保温杯的库存",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "儿童书包上周卖了多少单",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "儿童书包最近销量下滑什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "销量诊断"
+   ]
+  },
+  {
+   "question": "月报帮我出一份",
+   "intent": "report_generation",
+   "points": [
+    "月度总结"
+   ]
+  },
+  {
+   "question": "流量异常帮我看看",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "流量诊断"
+   ]
+  },
+  {
+   "question": "帮我列一下今天的异常单",
+   "intent": "data_query",
+   "points": [
+    "异常订单查询",
+    "列出待处理项",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "写个致歉话术",
+   "intent": "content_generate",
+   "points": [
+    "回复模板"
+   ]
+  },
+  {
+   "question": "把SKU-1006这个商品下掉",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "批量改运费的操作步骤",
+   "intent": "sop_howto",
+   "points": [
+    "给出操作步骤框架",
+    "特殊类目提示确认"
+   ]
+  },
+  {
+   "question": "儿童书包的类目放错了怎么改",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "SKU-1004上周卖出去几件",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "最近一周比上一个一周卖得好吗",
+   "intent": "data_query",
+   "points": [
+    "对比期查询",
+    "引用环比字段"
+   ]
+  },
+  {
+   "question": "帮我调整无线蓝牙耳机的库存",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "先涨价再打折算违规吗",
+   "intent": "platform_rules",
+   "points": [
+    "价格合规"
+   ]
+  },
+  {
+   "question": "订单号SKU-1001到哪一步了",
+   "intent": "order_ops",
+   "points": [
+    "订单查询类"
+   ]
+  },
+  {
+   "question": "查一下UV数据",
+   "intent": "data_query",
+   "points": [
+    "流量指标查询"
+   ]
+  },
+  {
+   "question": "图片被盗用怎么维权",
+   "intent": "platform_rules",
+   "points": [
+    "知识产权"
+   ]
+  },
+  {
+   "question": "给我一份转化率的分析报告",
+   "intent": "report_generation",
+   "points": [
+    "指定指标的报告"
+   ]
+  },
+  {
+   "question": "加购人数变少了什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "商品维度"
+   ]
+  },
+  {
+   "question": "SKU-1001上周卖出去几件",
+   "intent": "data_query",
+   "points": [
+    "单商品数据查询",
+    "区分SKU与店铺维度"
+   ]
+  },
+  {
+   "question": "店铺人群画像在哪看",
+   "intent": "campaign_ops",
+   "points": [
+    "人群/投放"
+   ]
+  },
+  {
+   "question": "运输破损责任是快递的还是我的",
+   "intent": "cs_escalation",
+   "points": [
+    "物流损责划分"
+   ]
+  },
+  {
+   "question": "引导好评返现违规吗",
+   "intent": "platform_rules",
+   "points": [
+    "刷单/违规行为"
+   ]
+  },
+  {
+   "question": "你们这个GMV是支付口径还是下单口径",
+   "intent": "data_query",
+   "points": [
+    "数据口径确认"
+   ]
+  },
+  {
+   "question": "店铺被冻结了怎么解冻",
+   "intent": "platform_rules",
+   "points": [
+    "账户违规"
+   ]
+  },
+  {
+   "question": "数码类目最近卖得怎么样",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "做运营好难啊",
+   "intent": "other",
+   "points": [
+    "吐槽闲聊"
+   ]
+  },
+  {
+   "question": "客诉太多处理不过来怎么办",
+   "intent": "cs_escalation",
+   "points": [
+    "多客诉优先级"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机卖不动，给我个建议",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "SKU-1001改价到199，怎么操作",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "早上好",
+   "intent": "other",
+   "points": [
+    "问候闲聊"
+   ]
+  },
+  {
+   "question": "有买家在群里带节奏，怎么应对",
+   "intent": "cs_escalation",
+   "points": [
+    "舆情风险"
+   ]
+  },
+  {
+   "question": "界面做得不错嘛",
+   "intent": "other",
+   "points": [
+    "夸赞闲聊"
+   ]
+  },
+  {
+   "question": "SKU-1004改价到199，怎么操作",
+   "intent": "product_ops",
+   "points": [
+    "改价要目标值",
+    "提示价格合规"
+   ]
+  },
+  {
+   "question": "帮我看看退款率，最近一周",
+   "intent": "data_query",
+   "points": [
+    "调用数据工具查指标",
+    "说明时间范围与口径",
+    "模拟数据来源要告知"
+   ]
+  },
+  {
+   "question": "异常订单的处理流程是什么",
+   "intent": "order_ops",
+   "points": [
+    "异常订单处理",
+    "用查询工具",
+    "处理走人工"
+   ]
+  },
+  {
+   "question": "销售额环比下降明显，什么问题",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "GMV维度"
+   ]
+  },
+  {
+   "question": "滞销的电饭煲怎么处理",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "最近转化率异常，帮我排查",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "区分事实与推测",
+    "先查数据再归因"
+   ]
+  },
+  {
+   "question": "把SKU-1006的库存调到500",
+   "intent": "product_ops",
+   "points": [
+    "调库存"
+   ]
+  },
+  {
+   "question": "儿童书包库存够不够大促",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "直播时电饭煲的卖点话术怎么讲",
+   "intent": "content_generate",
+   "points": [
+    "商品描述类"
+   ]
+  },
+  {
+   "question": "运动鞋的类目放错了怎么改",
+   "intent": "product_ops",
+   "points": [
+    "类目属性调整"
+   ]
+  },
+  {
+   "question": "滞销的儿童书包怎么处理",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机的转化率是多少",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "无线蓝牙耳机还有多少库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "查一下SKU-1004的库存",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "转化率这一周一直在掉，什么原因",
+   "intent": "anomaly_diagnosis",
+   "points": [
+    "区分事实与推测",
+    "先查数据再归因"
+   ]
+  },
+  {
+   "question": "SKU-1004的退款率查一下",
+   "intent": "data_query",
+   "points": [
+    "指定类目/商品维度的数据"
+   ]
+  },
+  {
+   "question": "最近有哪些退款单",
+   "intent": "data_query",
+   "points": [
+    "支付/退款明细"
+   ]
+  },
+  {
+   "question": "儿童书包不卖了，怎么下架",
+   "intent": "product_ops",
+   "points": [
+    "先确认商品与操作",
+    "给要素清单",
+    "实际执行走人工"
+   ]
+  },
+  {
+   "question": "电饭煲卖不动，给我个建议",
+   "intent": "product_ops",
+   "points": [
+    "滞销品处理"
+   ]
+  },
+  {
+   "question": "秒杀的库存怎么分配",
+   "intent": "campaign_ops",
+   "points": [
+    "秒杀要素"
+   ]
+  },
+  {
+   "question": "这单退款帮我审核一下，订单SKU-1004的",
+   "intent": "order_ops",
+   "points": [
+    "退款审核线索梳理",
+    "金额不由系统承诺"
+   ]
+  },
+  {
+   "question": "保温杯库存够不够大促",
+   "intent": "data_query",
+   "points": [
+    "查库存需要商品或SKU",
+    "返回库存数与状态",
+    "低库存要提示"
+   ]
+  },
+  {
+   "question": "活动复盘报告帮我准备一下",
+   "intent": "report_generation",
+   "points": [
+    "大促复盘结构"
+   ]
+  }
+ ]
+}

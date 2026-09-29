@@ -29,17 +29,17 @@ logger = logging.getLogger(__name__)
 
 
 class IntentCategory(Enum):
-    COMPLAINT  = "complaint"   # 投诉不满
-    GREETING   = "greeting"    # 问候
-    FEEDBACK   = "feedback"    # 正面反馈
-    ORDER_STATUS = "order_status"        # 订单状态
-    LOGISTICS = "logistics"              # 物流配送
-    REFUND = "refund"                    # 退款/退货
-    INVOICE = "invoice"                  # 发票
-    PAYMENT_ISSUE = "payment_issue"      # 支付/扣款异常
-    TECHNICAL_LOGIN = "technical_login"  # 登录认证故障
-    TECHNICAL_CRASH = "technical_crash"  # 崩溃/错误码
-    HUMAN_HANDOFF = "human_handoff"      # 转人工
+    DATA_QUERY        = "data_query"              # 数据查询
+    REPORT_GENERATION = "report_generation"       # 报表生成
+    PRODUCT_OPS       = "product_ops"             # 商品管理
+    CAMPAIGN_OPS      = "campaign_ops"            # 营销活动
+    ORDER_OPS         = "order_ops"               # 订单处理
+    CS_ESCALATION     = "cs_escalation"           # 客诉处理
+    PLATFORM_RULES    = "platform_rules"          # 平台规则咨询
+    SOP_HOWTO         = "sop_howto"               # 操作指引
+    ANOMALY_DIAGNOSIS = "anomaly_diagnosis"       # 异常诊断
+    CONTENT_GENERATE  = "content_generate"        # 内容生成
+    SYSTEM_ISSUE      = "system_issue"            # 系统故障
     OTHER      = "other"
 
 
@@ -53,17 +53,17 @@ class IntentResult:
 
 # ── 模板语料（Embedding 匹配用）───────────────────────────────────────────────
 _TEMPLATES: Dict[IntentCategory, List[str]] = {
-    IntentCategory.COMPLAINT:  ["等了好几个小时！", "服务太差了！", "一直没人处理！"],
-    IntentCategory.GREETING:   ["你好", "嗨，有人吗", "早上好"],
-    IntentCategory.FEEDBACK:   ["服务很棒！", "非常满意", "给个好评"],
-    IntentCategory.ORDER_STATUS: ["我的订单现在是什么状态？", "订单有没有发货？", "订单处理到哪一步了？"],
-    IntentCategory.LOGISTICS: ["快递什么时候到？", "物流一直不更新", "配送要多久？"],
-    IntentCategory.REFUND: ["我要申请退款", "退货退款怎么处理？", "退款多久到账？"],
-    IntentCategory.INVOICE: ["帮我开发票", "发票抬头怎么改？", "电子发票在哪里？"],
-    IntentCategory.PAYMENT_ISSUE: ["为什么重复扣款？", "支付失败怎么办？", "这个月多扣了钱"],
-    IntentCategory.TECHNICAL_LOGIN: ["登录一直报401", "验证码收不到", "无法登录账号"],
-    IntentCategory.TECHNICAL_CRASH: ["应用一直崩溃", "页面报500错误", "系统闪退"],
-    IntentCategory.HUMAN_HANDOFF: ["转人工客服", "我要找人工", "请升级处理", "我要投诉！", "找你们经理"],
+    IntentCategory.DATA_QUERY:   ["上周的销售额是多少", "查一下A商品的库存", "昨天退款率多少", "这个月GMV怎么样"],
+    IntentCategory.REPORT_GENERATION: ["帮我生成上周的销售周报", "出一份大促复盘报告", "把这个月的数据导出成报表"],
+    IntentCategory.PRODUCT_OPS:  ["把这个商品下架", "帮我改一下价格", "新品什么时候能上架"],
+    IntentCategory.CAMPAIGN_OPS: ["配置一张满减优惠券", "怎么报名618活动", "这个月有什么促销活动可以参加"],
+    IntentCategory.ORDER_OPS:    ["这单退款帮我审核一下", "有个异常订单要处理", "买家要改收货地址怎么操作"],
+    IntentCategory.CS_ESCALATION: ["这个客诉工单帮我升级一下", "消费者投诉了帮我跟进处理", "这个纠纷单催一下处理进度"],
+    IntentCategory.PLATFORM_RULES: ["延迟发货会被扣多少分", "虚假宣传有什么处罚", "报名活动需要什么资质"],
+    IntentCategory.SOP_HOWTO:    ["后台怎么批量修改运费模板", "设置优惠券的操作步骤是什么", "怎么在后台导出订单明细"],
+    IntentCategory.ANOMALY_DIAGNOSIS: ["转化率为什么突然跌了", "店铺流量异常怎么排查", "销量下滑是什么原因"],
+    IntentCategory.CONTENT_GENERATE: ["帮我写一个新品上架的卖点文案", "生成一条店铺公告", "给这个活动写句宣传语"],
+    IntentCategory.SYSTEM_ISSUE: ["商家后台一直报500错误", "账号登录不上了", "系统崩了没法操作"],
 }
 
 
@@ -204,9 +204,9 @@ class IntentRecognizer:
                 for m in history[-3:]
             )
 
-        prompt = f"""你是客服意图分析专家。根据示例判断用户意图，返回 JSON。
+        prompt = f"""你是电商运营服务平台的意图分析专家。提问的是商家/运营人员，根据示例判断其意图，返回 JSON。
 请从可选意图中选出最贴合用户问题的一个。
-例如退款用 refund，发票用 invoice，登录故障用 technical_login。
+例如查销售额用 data_query，配置优惠券用 campaign_ops，问扣分处罚用 platform_rules，后台报错用 system_issue。
 
         {ctx}
         用户消息: "{message}"
@@ -258,16 +258,17 @@ class IntentRecognizer:
         """策略 3：关键词模式匹配（同步，零延迟兜底）。"""
         msg = message.lower()
         patterns = {
-            IntentCategory.HUMAN_HANDOFF: ["转人工", "人工客服", "找人工", "投诉", "经理", "supervisor"],
-            IntentCategory.ORDER_STATUS: ["订单状态", "发货了吗", "处理到哪", "order status"],
-            IntentCategory.LOGISTICS: ["物流", "快递", "配送", "运单", "delivery", "shipping"],
-            IntentCategory.REFUND: ["退款", "退货", "refund", "return"],
-            IntentCategory.INVOICE: ["发票", "抬头", "税号", "invoice"],
-            IntentCategory.PAYMENT_ISSUE: ["重复扣款", "多扣", "支付失败", "扣费", "payment failed"],
-            IntentCategory.TECHNICAL_LOGIN: ["无法登录", "登录失败", "401", "验证码"],
-            IntentCategory.TECHNICAL_CRASH: ["崩溃", "闪退", "500", "报错", "crash"],
-            IntentCategory.COMPLAINT: ["太差", "糟糕", "horrible", "等了很久"],
-            IntentCategory.GREETING: ["你好", "嗨", "hello", "hi"],
+            IntentCategory.DATA_QUERY:   ["销售额", "退款率", "转化率", "库存还有", "查一下数据", "gmv", "访客", "销量多少", "uv"],
+            IntentCategory.REPORT_GENERATION: ["周报", "日报", "报表", "复盘", "导出报告", "月度总结", "经营分析"],
+            IntentCategory.PRODUCT_OPS:  ["下架", "上架", "改价", "调库存", "商品信息修改", "sku", "批量修改商品"],
+            IntentCategory.CAMPAIGN_OPS: ["优惠券", "满减", "活动报名", "促销活动", "秒杀", "营销投放"],
+            IntentCategory.ORDER_OPS:    ["退款审核", "退款处理", "退款", "异常订单", "改收货地址", "订单处理", "拦截订单", "订单号"],
+            IntentCategory.CS_ESCALATION: ["客诉", "工单", "投诉", "升级处理", "催办", "纠纷单"],
+            IntentCategory.PLATFORM_RULES: ["扣几分", "扣分", "处罚", "违规", "资质", "保证金", "平台规则", "入驻", "延迟发货", "罚款"],
+            IntentCategory.SOP_HOWTO:    ["怎么操作", "怎么设置", "怎么配置", "操作步骤", "后台怎么", "如何导出", "怎么开通"],
+            IntentCategory.ANOMALY_DIAGNOSIS: ["为什么跌", "为什么下降", "异常", "排查", "流量掉了", "波动", "下滑", "跌", "突然跌", "掉了"],
+            IntentCategory.CONTENT_GENERATE: ["写一个", "写一条", "文案", "公告", "宣传语", "帮我想", "生成一段"],
+            IntentCategory.SYSTEM_ISSUE: ["报错", "500", "崩溃", "登录不上", "系统故障", "bug", "白屏", "无法访问"],
         }
         best_cat, best_score = self._best_pattern_match(msg, patterns)
         return {"intent": best_cat, "confidence": best_score}

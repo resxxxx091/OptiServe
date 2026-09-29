@@ -302,7 +302,7 @@
             <h2>检索知识</h2>
           </div>
           <div class="search-line">
-            <input v-model="searchQuery" placeholder="例如：退款多久到账" @keydown.enter="searchKnowledge" />
+            <input v-model="searchQuery" placeholder="例如：延迟发货扣几分" @keydown.enter="searchKnowledge" />
             <button @click="searchKnowledge" :disabled="busy || !searchQuery.trim()">搜索</button>
           </div>
           <div v-if="searchedOnce" class="search-diag">
@@ -339,10 +339,10 @@
             <h2>添加知识</h2>
             <code>Milvus 混合索引</code>
           </div>
-          <label><span>标题</span><input v-model="docTitle" placeholder="退款补充政策" /></label>
+          <label><span>标题</span><input v-model="docTitle" placeholder="大促价格合规须知" /></label>
           <label class="add-caption" for="doc-content">内容</label>
           <div class="add-line">
-            <textarea id="doc-content" v-model="docContent" rows="7" placeholder="输入客服规范、产品说明或排障流程"></textarea>
+            <textarea id="doc-content" v-model="docContent" rows="7" placeholder="输入运营SOP、平台规则或商品资料"></textarea>
             <div class="add-actions">
               <button @click="submitKnowledge" :disabled="busy || !docTitle.trim() || !docContent.trim()">添加文档</button>
               <label class="upload-button">上传文件<input type="file" accept=".txt,.md,.json" @change="handleUpload" /></label>
@@ -390,14 +390,14 @@ const healthOk = ref(false)
 const healthLabel = ref('未检查')
 const healthDeps = ref([])
 const knowledgeCount = ref('-')
-const searchQuery = ref('退款多久能到账')
+const searchQuery = ref('延迟发货扣几分')
 const searchResults = ref([])
 const searchStages = ref({})
 const searchDegraded = ref(false)
 const searchError = ref('')
 const searchedOnce = ref(false)
-const docTitle = ref('退款补充政策')
-const docContent = ref('大促期间退款审核时间可能延长到 3-5 个工作日。')
+const docTitle = ref('大促价格合规须知')
+const docContent = ref('大促期间以活动前七日内最低成交价格为参照设置促销价，先涨后降属于价格欺诈。')
 const messageList = ref(null)
 const sidebarRef = ref(null)
 const draftInput = ref(null)
@@ -418,9 +418,9 @@ const docsUrl = computed(() => `${API_BASE}/docs`)
 
 /* 空态示例：让首屏有可点的入口，点击即填入输入框 */
 const quickPrompts = [
-  '退款多久能到账？',
-  '发票怎么开具？',
-  '物流地址可以修改吗？'
+  '上周的销售额是多少？',
+  '延迟发货会被扣多少分？',
+  '帮我把保温杯下架'
 ]
 const agentCount = computed(() => Object.keys(monitorData.value.agent_stats).length)
 const toolCount = computed(() => Object.keys(monitorData.value.tool_stats).length)
