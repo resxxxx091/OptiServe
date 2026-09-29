@@ -22,6 +22,7 @@ from langgraph.graph import END, START, StateGraph
 
 from core.degradation import Dep, degrade
 from core.llm import LLMProvider, message_text
+from core.tracing import trace_span, usage_attrs
 from core.vector_store import AsyncEmbeddingClient, VectorStoreConfig
 
 logger = logging.getLogger(__name__)
@@ -218,8 +219,13 @@ class IntentRecognizer:
 
         try:
             chat = self._llm.chat_model(model=self.model, temperature=0.1, max_tokens=256)
-            resp = await chat.ainvoke([HumanMessage(content=prompt)])
-            raw = message_text(resp)
+            with trace_span("llm_intent", input=prompt, model=self.model) as span:
+                # 模型名走 OTel 属性：Langfuse 成本面板按 gen_ai.request.model 查价格表
+                span.otel = {"gen_ai.request.model": self.model}
+                resp = await chat.ainvoke([HumanMessage(content=prompt)])
+                raw = message_text(resp)
+                span.output = raw
+                span.otel.update(usage_attrs(resp))
             s, e = raw.find("{"), raw.rfind("}") + 1
             data = json.loads(raw[s:e])
             try:

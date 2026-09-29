@@ -15,10 +15,12 @@ _lf: Any = None    # init_tracing() 装好；None 表示本次运行什么都不
 
 # 我们的 span 名前缀 → Langfuse 的 observation 类型，让 UI 按语义分组。
 # 取值必须是 langfuse._client.constants 里 ObservationTypeSpanLike / GenerationLike 的成员。
+# llm_* 落 generation：Langfuse 只对 generation 且带模型名 + usage 属性的节点算成本。
 _AS_TYPE = (
     ("tool:", "tool"),
     ("agent:", "agent"),
     ("rag.", "retriever"),
+    ("llm", "generation"),
 )
 
 
@@ -76,12 +78,17 @@ class _TraceHandle:
 
 class _Node:
     """埋点方看到的节点把手。attrs/output 累加到节点退出时才推给 SDK ——
-    update(metadata=) 是整值覆盖，而 .end() 之后再也写不进去。"""
-    __slots__ = ("attrs", "output")
+    update(metadata=) 是整值覆盖，而 .end() 之后再也写不进去。
+
+    otel 单独走 OTel attributes：Langfuse 的成本计算只认 gen_ai.* 这类
+    OTel 属性，走 metadata 传不进成本面板，所以给 usage 一条专用通道。
+    """
+    __slots__ = ("attrs", "output", "otel")
 
     def __init__(self, attrs: Dict[str, Any]):
         self.attrs: Dict[str, Any] = dict(attrs)
         self.output: Any = None
+        self.otel: Dict[str, Any] = {}
 
 
 _trace: ContextVar[Optional[_TraceHandle]] = ContextVar("optiserve_trace", default=None)
@@ -162,9 +169,37 @@ def trace_span(name: str, input: Any = None, **attrs: Any) -> Generator[Any, Non
             error = ex
             raise
         finally:
+            if node.otel:
+                _set_otel_attributes(node.otel)
             _push(obs.update, metadata=dict(node.attrs), output=node.output,
                   **({"level": "ERROR", "status_message": str(error)} if error else {}))
             _push(obs.end)
+
+
+def _set_otel_attributes(attrs: Dict[str, Any]) -> None:
+    """把 gen_ai.* 这类键写到当前 OTel span 上；写不进去只降日志，不影响请求。"""
+    try:
+        from opentelemetry import trace as otel_trace
+
+        span = otel_trace.get_current_span()
+        if span.is_recording():
+            span.set_attributes(_otel_attributes(attrs))
+    except Exception as ex:
+        logger.warning(f"OTel 属性写入失败: {type(ex).__name__}: {ex}")
+
+
+def usage_attrs(resp: Any) -> Dict[str, Any]:
+    """AIMessage 的 usage_metadata → Langfuse 成本面板认的 gen_ai.* OTel 属性。
+    端点没回 usage 时返回空，节点退化为无成本数据。"""
+    usage = getattr(resp, "usage_metadata", None) or {}
+    attrs: Dict[str, Any] = {}
+    if usage.get("input_tokens") is not None:
+        attrs["gen_ai.usage.input_tokens"] = usage["input_tokens"]
+    if usage.get("output_tokens") is not None:
+        attrs["gen_ai.usage.output_tokens"] = usage["output_tokens"]
+    if usage.get("total_tokens") is not None:
+        attrs["gen_ai.usage.total_tokens"] = usage["total_tokens"]
+    return attrs
 
 
 def _push(fn: Any, **kwargs: Any) -> None:

@@ -11,6 +11,7 @@
   - 工作记忆超过阈值时自动压缩（LLM 摘要），压缩在后台任务里跑，不阻塞 /chat 响应
 """
 import asyncio
+import contextvars
 import hashlib
 import json
 import logging
@@ -27,6 +28,7 @@ from pymilvus import AsyncMilvusClient, DataType, FieldSchema
 
 from core.degradation import Dep, degrade
 from core.llm import LLMProvider, message_text
+from core.tracing import start_trace, trace_span, usage_attrs
 from core.vector_store import (
     AsyncEmbeddingClient,
     CollectionSpec,
@@ -228,7 +230,12 @@ class MemoryManager:
         if running is not None and not running.done():
             return
 
-        task = asyncio.create_task(self._compress_guarded(user_id, conv_id))
+        # 显式空 Context：不继承调用方请求的 trace 和降级列表——压缩比请求活得久，
+        # 挂进请求 span 树会让链路显示请求"未结束"，降级事件也会漏进已返回的响应
+        task = asyncio.create_task(
+            self._compress_guarded(user_id, conv_id),
+            context=contextvars.Context(),
+        )
         self._compress_tasks[task_key] = task
         task.add_done_callback(lambda done: self._forget_compress_task(task_key, done))
 
@@ -237,9 +244,19 @@ class MemoryManager:
             self._compress_tasks.pop(task_key, None)
 
     async def _compress_guarded(self, user_id: str, conv_id: str) -> None:
-        """后台压缩不能把异常抛给事件循环，否则只是安静地打日志。"""
+        """后台压缩不能把异常抛给事件循环，否则只是安静地打日志。
+
+        压缩自成一条 trace（langfuse seed 带时间戳，每次压缩独立）：图内的
+        llm_compress_summary 等 span 靠这里的 ContextVar 才有地方挂，
+        「情景记忆为什么没写进去」在链路上直接可查，不用翻应用日志。
+        """
         try:
-            await self._compress(user_id, conv_id)
+            with start_trace(
+                f"compress:{user_id}:{conv_id}:{int(time.time())}",
+                "background:compress",
+                input={"user_id": user_id, "conv_id": conv_id},
+            ):
+                await self._compress(user_id, conv_id)
         except asyncio.CancelledError:
             raise
         except Exception as ex:
@@ -759,8 +776,13 @@ async def summarize_oldest(state: CompressState, config) -> Dict[str, Any]:
     prompt = mem._safe_text(f"用 2-3 句话总结以下对话的关键信息：\n{state['text']}")
     try:
         chat = mem._llm.chat_model(model=mem._model, temperature=0.0, max_tokens=256)
-        resp = await chat.ainvoke([HumanMessage(content=prompt)])
-        return {"summary": mem._safe_text(message_text(resp)).strip()}
+        with trace_span("llm_compress_summary", input=state["text"], model=mem._model) as span:
+            span.otel = {"gen_ai.request.model": mem._model}
+            resp = await chat.ainvoke([HumanMessage(content=prompt)])
+            raw = message_text(resp)
+            span.output = raw
+            span.otel.update(usage_attrs(resp))
+        return {"summary": mem._safe_text(raw).strip()}
     except Exception as ex:
         degrade(Dep.LLM, "compress_summary_failed", f"压缩摘要生成失败，改用占位摘要: {ex}")
         return {"summary": f"对话包含 {state['count']} 条消息（摘要生成失败）"}

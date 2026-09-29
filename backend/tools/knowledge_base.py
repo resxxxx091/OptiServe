@@ -425,11 +425,21 @@ async def rewrite_node(state: RetrievalState, config) -> Dict[str, Any]:
 async def recall_node(state: RetrievalState, config) -> Dict[str, Any]:
     """混合索引召回：所有子查询并行，每个子查询内部再打稠密 + 稀疏两路索引。"""
     p = _pipeline(config)
-    with trace_span("rag.recall", input=state["sub_queries"], recall_k=state["recall_k"]):
+    with trace_span("rag.recall", input=state["sub_queries"], recall_k=state["recall_k"]) as span:
         recalls = await asyncio.gather(*[
             p.registry.call(state["tool_name"], {"query": q, "top_k": state["recall_k"]})
             for q in state["sub_queries"]
         ], return_exceptions=True)
+        # output 只记每路命中数和前几条标题：全文会撑爆 trace，定位「哪路召回空」够用了
+        span.output = [
+            {
+                "query": query,
+                "hits": len(recall.data) if isinstance(recall, ToolResult) and recall.success else 0,
+                "top": [doc.get("title", "") for doc in (recall.data if isinstance(recall, ToolResult) else [])[:3]],
+            }
+            if not isinstance(recall, Exception) else {"query": query, "hits": 0, "top": [], "error": str(recall)}
+            for query, recall in zip(state["sub_queries"], recalls)
+        ]
     return {"recalls": list(recalls)}
 
 
@@ -498,7 +508,11 @@ async def rerank_node(state: RetrievalState, config) -> Dict[str, Any]:
                     stages=state.get("stages") or {},
                 )
             }
-        span.output = [{"candidate": index, "score": score} for index, score in scored]
+        # 带上 id/title：纯下标离开 candidates 列表就没有含义，rerank 前后无法对照
+        span.output = [
+            {"id": candidates[index].get("id", ""), "title": candidates[index].get("title", ""), "score": score}
+            for index, score in scored
+        ]
 
     rrf_scores = [score for _, score in state["coarse"]]
     triples = [(candidates[index], rrf_scores[index], score) for index, score in scored]

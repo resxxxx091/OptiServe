@@ -30,7 +30,7 @@ from langgraph.types import Send
 
 from core.degradation import Dep, degrade
 from core.llm import message_text
-from core.tracing import add_event, trace_span
+from core.tracing import add_event, trace_span, usage_attrs
 
 if TYPE_CHECKING:
     from agents.base import BaseAgent
@@ -85,8 +85,11 @@ async def call_model(state: ToolLoopState, config: RunnableConfig) -> Dict[str, 
         model=agent._model,
         prompt_turns=len(messages),
     ) as span:
+        # 模型名走 OTel 属性：Langfuse 成本面板按 gen_ai.request.model 查价格表
+        span.otel = {"gen_ai.request.model": agent._model}
         resp = await chat.ainvoke(messages)
         span.output = message_text(resp)
+        span.otel.update(usage_attrs(resp))
 
     # 参数解析失败的工具调用一并带进循环：走 _validate_tool_input 的同一失败分支，
     # 保证 assistant 的每个 tool_call 都有对应的 tool 消息回给端点。

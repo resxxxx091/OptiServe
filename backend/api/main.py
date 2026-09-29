@@ -12,6 +12,7 @@ import logging
 import os
 import pathlib
 import sys
+import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
@@ -348,10 +349,14 @@ async def reload_skills():
     """运行时重新扫描 Skill 目录，不需要重启服务。"""
     if _skill_manager is None:
         raise HTTPException(503, "Skills 未初始化")
-    _skill_manager.reload()
-    if _orchestrator is not None:
-        _orchestrator.set_skill_manager(_skill_manager)
-    return _skill_manager.summary()
+    # 写端点埋点属于审计线（谁在何时改了运行态），读端点不埋——列表页会被刷屏
+    with start_trace(str(uuid.uuid4())[:8], "skills_reload") as tr:
+        _skill_manager.reload()
+        if _orchestrator is not None:
+            _orchestrator.set_skill_manager(_skill_manager)
+        summary = _skill_manager.summary()
+        tr.output = {"skills": len(summary.get("skills", [])), "errors": len(summary.get("errors", []))}
+    return summary
 
 
 # 画像更新是后台任务，但没存引用的 task 可能被 GC 掉、异常也会静默消失，所以统一挂进这个集合，shutdown 时再等未完成的收尾。
@@ -365,7 +370,11 @@ PROFILE_DRAIN_TIMEOUT_S = float(os.getenv("OPTISERVE_PROFILE_DRAIN_TIMEOUT_S", "
 
 async def _run_profile_update(memory: "MemoryManager", user_id: str, conv_id: str) -> None:
     async with _profile_slots:
-        await memory.update_profile(user_id, conv_id)
+        # 空 Context 里没有现成 trace，trace_scope 会自己开一条：画像提炼的 LLM
+        # 调用与降级从此在 Langfuse 可查，不再只留应用日志
+        with start_trace(f"profile:{user_id}:{int(time.time())}", "background:profile",
+                         input={"user_id": user_id, "conv_id": conv_id}):
+            await memory.update_profile(user_id, conv_id)
 
 
 def _spawn_profile_update(memory: "MemoryManager", user_id: str, conv_id: str) -> None:
@@ -431,6 +440,11 @@ async def chat(req: ChatRequest):
             with trace_span("intent_recognition", input=req.message, source="api") as span:
                 intent_result = await _orchestrator.recognize_intent(req.message, history=history)
                 span.output = intent_result.intent.value
+                span.attrs.update(
+                    intent=intent_result.intent.value,
+                    confidence=round(intent_result.confidence, 4),
+                    source_scores={k: round(v, 4) for k, v in intent_result.source_scores.items()},
+                )
 
             orch_req = OrcReq(
                 message=req.message,
@@ -587,11 +601,15 @@ async def add_knowledge(body: BatchDocInput):
         raise HTTPException(503, "知识库未初始化")
     from core.vector_store import VectorStoreError
 
-    try:
-        count = await _kb.add_documents_async([{"title": d.title, "content": d.content} for d in body.documents])
-    except VectorStoreError as ex:
-        raise HTTPException(503, f"知识库写入失败: {ex}")
-    total = await _kb.doc_count_async()
+    # input 只记标题不记正文：审计要的是「谁在何时改了什么文档」，正文已在知识库本身
+    with start_trace(str(uuid.uuid4())[:8], "knowledge_add",
+                     input={"documents": [{"title": d.title, "chars": len(d.content)} for d in body.documents]}) as tr:
+        try:
+            count = await _kb.add_documents_async([{"title": d.title, "content": d.content} for d in body.documents])
+        except VectorStoreError as ex:
+            raise HTTPException(503, f"知识库写入失败: {ex}")
+        total = await _kb.doc_count_async()
+        tr.output = {"added_chunks": count, "total_chunks": total}
     return {"message": f"成功导入 {count} 个文档片段", "added_chunks": count, "total_chunks": total}
 
 
@@ -632,11 +650,14 @@ async def upload_knowledge(file: UploadFile = File(...)):
         title = filename.rsplit(".", 1)[0] if "." in filename else filename
         docs = [{"title": title, "content": text}]
 
-    try:
-        count = await _kb.add_documents_async(docs)
-    except VectorStoreError as ex:
-        raise HTTPException(503, f"知识库写入失败: {ex}")
-    total = await _kb.doc_count_async()
+    with start_trace(str(uuid.uuid4())[:8], "knowledge_upload",
+                     input={"filename": filename, "chars": len(text), "documents": len(docs)}) as tr:
+        try:
+            count = await _kb.add_documents_async(docs)
+        except VectorStoreError as ex:
+            raise HTTPException(503, f"知识库写入失败: {ex}")
+        total = await _kb.doc_count_async()
+        tr.output = {"added_chunks": count, "total_chunks": total}
     return {
         "message": f"文件 {filename} 导入成功",
         "added_chunks": count,

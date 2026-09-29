@@ -48,8 +48,16 @@ _events: ContextVar[Optional[List[DegradeEvent]]] = ContextVar("optiserve_degrad
 
 
 def degrade(source: Dep, code: str, message: str) -> None:
-    """记一条降级事件。同一请求内 (source, code) 只留一条，避免重复。"""
+    """记一条降级事件。同一请求内 (source, code) 只留一条，避免重复。
+
+    除了进请求级列表，还往当前 OTel span 挂一条 event：降级发生在哪个节点
+    （memory_read 的 Redis 超时、rag.rerank 的精排失败）在 Langfuse 的 span 树上直接可见，
+    不用从根节点 meta 的 message 文字里猜。event 每次发生都挂（时间戳即发生时刻），
+    (source, code) 去重只作用于请求级列表；无 trace 上下文时 add_event 自己空转。
+    """
     logger.warning(f"降级 [{source.value}/{code}] {message}")
+    from core.tracing import add_event
+    add_event("degraded", source=source.value, code=code, message=message)
     events = _events.get()
     if events is None:
         return
