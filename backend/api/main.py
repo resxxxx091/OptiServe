@@ -497,6 +497,38 @@ async def chat(req: ChatRequest):
     return response
 
 
+# ── 会话历史（侧栏）──────────────────────────────────────────────────────────
+# 读的是 MemoryManager 的会话档案（Redis，30 天 TTL），与 /chat 的工作记忆是两批 key。
+
+@app.get("/conversations")
+async def list_conversations(user_id: str = "anonymous"):
+    if _memory is None:
+        raise HTTPException(503, "服务未就绪")
+    return {"conversations": await _memory.list_conversations(user_id)}
+
+
+@app.get("/conversations/{conv_id}/messages")
+async def conversation_messages(conv_id: str, user_id: str = "anonymous"):
+    if _memory is None:
+        raise HTTPException(503, "服务未就绪")
+    messages = await _memory.get_archived_messages(user_id, conv_id)
+    return {
+        "conv_id": conv_id,
+        "messages": [
+            {"role": m.role.value, "content": m.content, "ts": m.timestamp.isoformat()}
+            for m in messages
+        ],
+    }
+
+
+@app.delete("/conversations/{conv_id}", dependencies=[Depends(require_configured_token)])
+async def delete_conversation(conv_id: str, user_id: str = "anonymous"):
+    if _memory is None:
+        raise HTTPException(503, "服务未就绪")
+    await _memory.delete_conversation(user_id, conv_id)
+    return {"deleted": conv_id}
+
+
 @app.get("/monitor")
 async def monitor_summary():
     """运行期读数：Agent 与工具统计、路由降权与改判阈值。"""

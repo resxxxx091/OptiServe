@@ -483,7 +483,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 /* ===================== 页面骨架 ===================== */
 
 .page {
-  width: min(1440px, 100%);
+  width: min(1760px, 100%);
   margin: 0 auto;
   padding: var(--sp-4) var(--sp-5) var(--sp-5);
   min-height: 0;
@@ -682,7 +682,7 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
 
 .chat-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(340px, 26vw, 400px);
+  grid-template-columns: auto minmax(0, 1fr) clamp(340px, 26vw, 400px);
   gap: var(--sp-3);
   align-items: stretch;
   min-height: 0;
@@ -970,6 +970,156 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+/* 左侧会话历史：可折叠，收起后只留一个切换按钮的窄条 */
+.history-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 256px;
+  min-height: 0;
+  height: var(--sidebar-height, calc(100vh - var(--topbar-h) - 64px));
+  align-self: stretch;
+  padding: var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-low), inset 0 1px 0 rgba(248, 248, 242, 0.05);
+  transition: width 180ms var(--ease);
+  overflow: hidden;
+}
+
+.history-sidebar.collapsed { width: 44px; padding: var(--sp-2) 6px; }
+
+.history-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.history-sidebar.collapsed .history-head { justify-content: center; }
+
+.history-title {
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: var(--fw-label);
+  white-space: nowrap;
+}
+
+.history-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 120ms var(--ease), border-color 120ms var(--ease), transform 180ms var(--ease);
+}
+
+.history-toggle:hover { color: var(--text); border-color: var(--line-strong); }
+
+/* 收起时箭头翻转向右（展开方向） */
+.history-sidebar.collapsed .history-toggle svg { transform: rotate(180deg); }
+
+.history-new {
+  min-height: 30px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 120ms var(--ease), border-color 120ms var(--ease);
+  white-space: nowrap;
+}
+
+.history-new:hover { color: var(--text); border-color: var(--muted); }
+
+.history-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-list li {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--radius-sm);
+}
+
+.history-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 26px 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms var(--ease), border-color 120ms var(--ease);
+}
+
+.history-item:hover { background: var(--bg-soft); }
+
+.history-list li.active .history-item { background: var(--panel-2); border-color: var(--line-strong); }
+
+.history-item strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: var(--fw-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item small { color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+
+.history-delete {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms var(--ease), color 120ms var(--ease);
+}
+
+.history-list li:hover .history-delete,
+.history-delete:focus-visible { opacity: 1; }
+
+.history-delete:hover { color: var(--danger, #ff5555); }
+
+.history-empty {
+  padding: 10px 9px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .chat-sidebar-scroll {
@@ -1286,6 +1436,8 @@ svg { display: block; width: 1em; height: 1em; flex: 0 0 auto; }
   .view-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
   .view-nav button { min-height: 36px; }
   .chat-layout { grid-template-columns: 1fr; }
+  /* 单列堆叠后侧栏会占一整行，窄屏直接收起这个入口 */
+  .history-sidebar { display: none; }
   .knowledge-layout { grid-template-columns: 1fr; }
   .page-knowledge { display: block; overflow: visible; }
   .app-shell, .app-shell-chat { height: auto; overflow: visible; }

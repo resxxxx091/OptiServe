@@ -25,7 +25,8 @@ export function createInitialSettings() {
   return {
     userId: saved.userId || 'u1001',
     conversationId: saved.conversationId || '',
-    apiToken: saved.apiToken || ''
+    apiToken: saved.apiToken || '',
+    historyCollapsed: saved.historyCollapsed || false
   }
 }
 
@@ -72,6 +73,24 @@ export function requestChat(settings, message, signal) {
     signal,
     timeoutMs: TIMEOUT.chat
   }).then(normalizeChatResponse)
+}
+
+export function requestConversations(userId, signal) {
+  const params = new URLSearchParams({ user_id: userId })
+  return requestJson(`/conversations?${params}`, { signal })
+}
+
+export function requestConversationMessages(userId, convId, signal) {
+  const params = new URLSearchParams({ user_id: userId })
+  return requestJson(`/conversations/${encodeURIComponent(convId)}/messages?${params}`, { signal })
+}
+
+export function deleteConversation(userId, convId) {
+  const params = new URLSearchParams({ user_id: userId })
+  return requestJson(`/conversations/${encodeURIComponent(convId)}?${params}`, {
+    method: 'DELETE',
+    timeoutMs: TIMEOUT.write
+  })
 }
 
 export function addKnowledge(documents) {

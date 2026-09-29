@@ -119,6 +119,10 @@ class MemoryManager:
     HISTORY_TOP_K = 5     # 情景记忆检索返回条数
     SUMMARY_MAX_CHARS = 800
     FULL_TEXT_LIMIT = 2000
+    # 会话档案（侧栏历史）：全文按时间序另存一份，带 30 天 TTL，和工作记忆的 24h 是两批 key
+    ARCHIVE_TTL_S = 30 * 86400
+    ARCHIVE_INDEX_MAX = 50  # 每用户索引只保留最近 50 个会话，被挤出的档案留给 TTL 自清
+    TITLE_MAX_CHARS = 30
     PROFILE_DOC_PREFIX = "user_profile:"
     EPISODIC_COLLECTION = "episodic"
     PROFILE_COLLECTION  = "user_profile"
@@ -209,6 +213,9 @@ class MemoryManager:
         }))
         await self._redis.expire(key, 86400)  # 24h TTL
 
+        # 会话档案是给侧栏历史用的第二份存储，写失败只降级不影响 /chat
+        await self._archive_message(user_id, conv_id, msg)
+
         # 超过压缩阈值时把压缩丢到后台，/chat 不等摘要和向量写入
         if await self._redis.llen(key) >= self.COMPRESS_AT:
             self._schedule_compress(user_id, conv_id)
@@ -268,6 +275,77 @@ class MemoryManager:
             {"configurable": {"memory": self}},
         )
         return state["result"]
+
+    # ── 会话档案（侧栏历史）────────────────────────────────────────────────────
+    #
+    # conv-msgs:{u}:{c}  list，全文按时间序（rpush），30 天 TTL
+    # conv-index:{u}     zset，member=conv_id，score=最后活跃时间，只留最近 50 个
+    # conv-title:{u}     hash，conv_id → 标题（首条用户消息截断，hsetnx 只认首次）
+
+    async def _archive_message(self, user_id: str, conv_id: str, msg: Message) -> None:
+        try:
+            payload = json.dumps({"role": msg.role.value, "content": msg.content, "ts": msg.timestamp.isoformat()})
+            ikey, tkey = self._index_key(user_id), self._title_key(user_id)
+            async with self._redis.pipeline(transaction=True) as pipe:
+                pipe.rpush(self._archive_key(user_id, conv_id), payload)
+                pipe.expire(self._archive_key(user_id, conv_id), self.ARCHIVE_TTL_S)
+                pipe.zadd(ikey, {conv_id: msg.timestamp.timestamp()})
+                # 按最后活跃时间裁剪：rank 0 是最旧的，负数下标从尾部保留 ARCHIVE_INDEX_MAX 个
+                pipe.zremrangebyrank(ikey, 0, -(self.ARCHIVE_INDEX_MAX + 1))
+                pipe.expire(ikey, self.ARCHIVE_TTL_S)
+                if msg.role is MsgRole.USER:
+                    pipe.hsetnx(tkey, conv_id, msg.content[: self.TITLE_MAX_CHARS])
+                pipe.expire(tkey, self.ARCHIVE_TTL_S)
+                await pipe.execute()
+        except Exception as ex:
+            degrade(Dep.MEMORY, "archive_write_failed", f"会话档案写入失败 {user_id}/{conv_id}: {ex}")
+
+    async def list_conversations(self, user_id: str) -> List[Dict[str, Any]]:
+        """按最后活跃时间倒序返回会话索引；Redis 不可用返回空列表。"""
+        try:
+            rows, titles = await asyncio.gather(
+                self._redis.zrevrange(self._index_key(user_id), 0, self.ARCHIVE_INDEX_MAX - 1, withscores=True),
+                self._redis.hgetall(self._title_key(user_id)),
+            )
+            return [
+                {
+                    "conv_id": conv_id,
+                    "title": titles.get(conv_id) or "未命名会话",
+                    "last_active": int(score),
+                }
+                for conv_id, score in rows
+            ]
+        except Exception as ex:
+            degrade(Dep.MEMORY, "archive_list_failed", f"会话列表读取失败: {ex}")
+            return []
+
+    async def get_archived_messages(self, user_id: str, conv_id: str) -> List[Message]:
+        """档案本身按时间序存放，读出即正序；无档案（TTL 已到）返回空列表。"""
+        try:
+            raws = await self._redis.lrange(self._archive_key(user_id, conv_id), 0, -1)
+        except Exception as ex:
+            degrade(Dep.MEMORY, "archive_read_failed", f"会话档案读取失败 {user_id}/{conv_id}: {ex}")
+            return []
+        msgs = []
+        for raw in raws:
+            d = json.loads(raw)
+            msgs.append(Message(
+                role=MsgRole(d["role"]),
+                content=d["content"],
+                timestamp=datetime.fromisoformat(d["ts"]),
+            ))
+        return msgs
+
+    async def delete_conversation(self, user_id: str, conv_id: str) -> None:
+        """删除一个会话的档案、索引项、标题，连带工作记忆和摘要。"""
+        conv_id = self._safe_text(conv_id)
+        async with self._redis.pipeline(transaction=True) as pipe:
+            pipe.delete(self._archive_key(user_id, conv_id))
+            pipe.zrem(self._index_key(user_id), conv_id)
+            pipe.hdel(self._title_key(user_id), conv_id)
+            pipe.delete(self._wm_key(user_id, conv_id))
+            pipe.delete(self._summary_key(user_id, conv_id))
+            await pipe.execute()
 
     # ── 压缩（防止 context 爆炸）─────────────────────────────────────────────
 
@@ -434,6 +512,18 @@ class MemoryManager:
     @classmethod
     def _summary_key(cls, user_id: str, conv_id: str) -> str:
         return f"summary:{cls._key_part(user_id)}:{cls._key_part(conv_id)}"
+
+    @classmethod
+    def _archive_key(cls, user_id: str, conv_id: str) -> str:
+        return f"conv-msgs:{cls._key_part(user_id)}:{cls._key_part(conv_id)}"
+
+    @classmethod
+    def _index_key(cls, user_id: str) -> str:
+        return f"conv-index:{cls._key_part(user_id)}"
+
+    @classmethod
+    def _title_key(cls, user_id: str) -> str:
+        return f"conv-title:{cls._key_part(user_id)}"
 
     @classmethod
     def _profile_doc_id(cls, user_id: str) -> str:

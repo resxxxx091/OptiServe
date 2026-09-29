@@ -88,12 +88,46 @@
           <h1>和运营服务 Agent 对话</h1>
           <p>发送一条真实请求，查看它如何识别意图、选择 Agent 并生成回复。</p>
         </div>
-        <div class="heading-actions">
-          <button class="quiet-button" @click="clearConversation">清空</button>
-        </div>
       </div>
 
       <div class="chat-layout">
+        <aside ref="historyRef" class="history-sidebar" :class="{ collapsed: !historyOpen }">
+          <div class="history-head">
+            <button
+              class="history-toggle"
+              :title="historyOpen ? '收起历史' : '展开历史'"
+              :aria-expanded="historyOpen"
+              @click="toggleHistory"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                <path d="M10 4 6 8l4 4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <span v-if="historyOpen" class="history-title">会话历史</span>
+          </div>
+          <template v-if="historyOpen">
+            <button class="history-new" @click="clearConversation">＋ 新会话</button>
+            <ul class="history-list">
+              <li
+                v-for="conv in conversations"
+                :key="conv.conv_id"
+                :class="{ active: conv.conv_id === settings.conversationId }"
+              >
+                <button class="history-item" :title="conv.title" @click="openConversation(conv)">
+                  <strong>{{ conv.title }}</strong>
+                  <small>{{ formatConvTime(conv.last_active) }}</small>
+                </button>
+                <button class="history-delete" title="删除会话" @click.stop="removeConversation(conv)">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </li>
+              <li v-if="!conversations.length" class="history-empty">暂无历史会话</li>
+            </ul>
+          </template>
+        </aside>
+
         <section class="chat-stage">
           <div class="stage-bar">
             <span>{{ messages.length }} 条消息</span>
@@ -328,8 +362,11 @@ import {
   addKnowledge,
   chatUserId,
   createInitialSettings,
+  deleteConversation,
   reloadSkills,
   requestChat,
+  requestConversationMessages,
+  requestConversations,
   requestHealth,
   requestKnowledgeStats,
   requestMonitor,
@@ -346,6 +383,9 @@ const userIdInput = ref(null)
 const messages = ref([])
 const draft = ref('')
 const busy = ref(false)
+const conversations = ref([])
+const historyOpen = ref(!settings.historyCollapsed)
+const historyRef = ref(null)
 const healthOk = ref(false)
 const healthLabel = ref('未检查')
 const healthDeps = ref([])
@@ -453,6 +493,7 @@ const stageChips = computed(() => {
 
 onMounted(() => {
   refreshConsole()
+  loadConversations()
   updateSidebarHeight()
   if (typeof ResizeObserver !== 'undefined') {
     sidebarObserver = new ResizeObserver(updateSidebarHeight)
@@ -461,6 +502,9 @@ onMounted(() => {
   window.addEventListener('resize', updateSidebarHeight)
   window.addEventListener('keydown', onGlobalKeydown)
 })
+
+/* 换身份即换一批会话档案：索引按 user 隔离，旧身份的列表不能再留着误导 */
+watch(() => settings.userId, () => { loadConversations() })
 
 /* 切走再切回时 v-if 重挂侧栏：内联高度变量随旧 DOM 一起销毁，新元素回落到兜底高度，
    会把 chat 布局撑出视口；旧 observer 观察的也是已卸载的元素，必须重新观察并重算。 */
@@ -494,10 +538,13 @@ function onGlobalKeydown(event) {
 /* 侧栏高度钉成所在行高：行内放不下时走内部滚动。
    不能量侧栏自身——它的兜底高度就是视口推导值，量到什么写回什么，底部卡片会被裁出视口。 */
 function updateSidebarHeight() {
-  const sidebar = sidebarRef.value
-  if (!sidebar) return
-  const available = sidebar.parentElement.clientHeight
-  sidebar.style.setProperty('--sidebar-height', `${Math.max(320, Math.floor(available))}px`)
+  applySidebarHeight(sidebarRef.value)
+  applySidebarHeight(historyRef.value)
+}
+
+function applySidebarHeight(el) {
+  if (!el || !el.parentElement) return
+  el.style.setProperty('--sidebar-height', `${Math.max(320, Math.floor(el.parentElement.clientHeight))}px`)
 }
 
 /* 每个读数一把控制器：begin 会作废上一轮，所以 signal.aborted 就等于"我已经不是最新一轮"。
@@ -607,6 +654,8 @@ async function sendMessage() {
       degradations: response.degradations
     })
     await loadMonitor()
+    // 新会话的首条消息或续聊的活跃时间变了，侧栏索引要跟上
+    loadConversations()
   } catch (error) {
     messages.value.push({
       id: createMessageId(),
@@ -640,6 +689,78 @@ function clearConversation() {
   lastResponse.value = null
   settings.conversationId = ''
   persist()
+}
+
+/* ── 左侧会话历史 ─────────────────────────────────────────────────────────── */
+
+async function loadConversations() {
+  const signal = begin('conversations')
+  try {
+    const data = await requestConversations(chatUserId(settings), signal)
+    if (!signal.aborted) conversations.value = data.conversations || []
+  } catch {
+    // 列表加载失败不打扰：侧栏保留上一次的内容
+  }
+}
+
+function toggleHistory() {
+  historyOpen.value = !historyOpen.value
+  settings.historyCollapsed = !historyOpen.value
+  persist()
+}
+
+async function openConversation(conv) {
+  if (busy.value) {
+    showToast('当前请求处理中，稍后再切换会话')
+    return
+  }
+  if (conv.conv_id === settings.conversationId) return
+  const signal = begin('conv-messages')
+  try {
+    const data = await requestConversationMessages(chatUserId(settings), conv.conv_id, signal)
+    if (signal.aborted) return
+    settings.conversationId = conv.conv_id
+    persist()
+    lastResponse.value = null
+    messages.value = (data.messages || []).map(m => ({
+      id: createMessageId(),
+      role: m.role,
+      content: m.content,
+      time: formatArchivedTime(m.ts)
+    }))
+    await nextTick()
+    messageList.value?.scrollTo({ top: messageList.value.scrollHeight })
+  } catch (error) {
+    if (!signal.aborted) showToast(`会话加载失败：${error.message}`)
+  }
+}
+
+async function removeConversation(conv) {
+  try {
+    await deleteConversation(chatUserId(settings), conv.conv_id)
+    conversations.value = conversations.value.filter(item => item.conv_id !== conv.conv_id)
+    // 删的是当前打开的会话：本地消息一起清掉，回到新会话态
+    if (conv.conv_id === settings.conversationId) clearConversation()
+    showToast('会话已删除')
+  } catch (error) {
+    showToast(`删除失败：${error.message}`)
+  }
+}
+
+/* 索引里存的是秒级 epoch */
+function formatConvTime(epochSeconds) {
+  return new Date(epochSeconds * 1000).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+function formatArchivedTime(iso) {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('zh-CN', { hour12: false })
 }
 
 async function searchKnowledge() {
