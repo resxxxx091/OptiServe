@@ -24,6 +24,7 @@ import pathlib
 import statistics
 import sys
 from collections import Counter
+from typing import Dict
 from datetime import datetime
 
 import httpx
@@ -60,6 +61,12 @@ JUDGE_PROMPT = """你是电商客服回答的质量评审员。对照参考要�
 def _item_id(question: str) -> str:
     """数据集条目用确定性 id：重复同步是 upsert，不会越传越多。"""
     return f"optiserve-eval-{hashlib.md5(question.encode()).hexdigest()[:16]}"
+
+
+def _auth_headers() -> Dict[str, str]:
+    """后端鉴权中间件对所有路由生效（含 /search /chat），脚本必须带令牌。"""
+    token = os.getenv("OPTISERVE_API_TOKEN", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
 
 
 def _load_dataset(path: str) -> list:
@@ -226,7 +233,7 @@ async def run_rag(args) -> None:
         )
         return result
 
-    async with httpx.AsyncClient() as http:
+    async with httpx.AsyncClient(headers=_auth_headers()) as http:
         results = await asyncio.gather(*(run_one(http, item) for item in items))
 
     ok = [r for r in results if "error" not in r]
@@ -281,7 +288,7 @@ async def main() -> None:
 
     run_name = f"{RUN_PREFIX}-{datetime.now():%Y%m%d-%H%M%S}"
     semaphore = asyncio.Semaphore(CONCURRENCY)
-    async with httpx.AsyncClient() as http:
+    async with httpx.AsyncClient(headers=_auth_headers()) as http:
         async def run_one(item: dict) -> dict:
             result = {"question": item["question"], "intent_gold": item["intent"], "points": item["points"]}
             try:

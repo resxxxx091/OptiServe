@@ -144,6 +144,8 @@ class KnowledgeBase:
                 for row, dense in zip(rows, vectors)
             ],
         )
+        # count(*) 只统计已 seal 的数据，不 flush 的话紧随其后的 doc_count 会返回 0
+        await client.flush(collection_name=self.COLLECTION_NAME)
         logger.info(f"知识库导入 {len(rows)} 个文档片段（稠密向量 + 库内 BM25 词法向量）")
         return len(rows)
 
@@ -425,19 +427,30 @@ async def rewrite_node(state: RetrievalState, config) -> Dict[str, Any]:
 async def recall_node(state: RetrievalState, config) -> Dict[str, Any]:
     """混合索引召回：所有子查询并行，每个子查询内部再打稠密 + 稀疏两路索引。"""
     p = _pipeline(config)
+
+    def _summarize(query: str, recall: Any) -> Dict[str, Any]:
+        """output 只记每路命中数和前几条标题：全文会撑爆 trace，定位「哪路召回空」够用了。"""
+        entry: Dict[str, Any] = {"query": query, "hits": 0, "top": []}
+        if isinstance(recall, Exception):
+            entry["error"] = str(recall)
+            return entry
+        if not (isinstance(recall, ToolResult) and recall.success):
+            entry["error"] = recall.error if isinstance(recall, ToolResult) else "unknown"
+            return entry
+        # 召回工具的 data 是 {"dense": [...], "sparse": [...]} 双路结构
+        data = recall.data if isinstance(recall.data, dict) else {}
+        docs = [d for path in data.values() if isinstance(path, list) for d in path if isinstance(d, dict)]
+        entry["hits"] = len(docs)
+        entry["top"] = [str(d.get("title", "")) for d in docs[:3]]
+        return entry
+
     with trace_span("rag.recall", input=state["sub_queries"], recall_k=state["recall_k"]) as span:
         recalls = await asyncio.gather(*[
             p.registry.call(state["tool_name"], {"query": q, "top_k": state["recall_k"]})
             for q in state["sub_queries"]
         ], return_exceptions=True)
-        # output 只记每路命中数和前几条标题：全文会撑爆 trace，定位「哪路召回空」够用了
         span.output = [
-            {
-                "query": query,
-                "hits": len(recall.data) if isinstance(recall, ToolResult) and recall.success else 0,
-                "top": [doc.get("title", "") for doc in (recall.data if isinstance(recall, ToolResult) else [])[:3]],
-            }
-            if not isinstance(recall, Exception) else {"query": query, "hits": 0, "top": [], "error": str(recall)}
+            _summarize(query, recall)
             for query, recall in zip(state["sub_queries"], recalls)
         ]
     return {"recalls": list(recalls)}
